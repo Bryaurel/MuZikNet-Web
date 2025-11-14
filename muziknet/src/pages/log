@@ -1,0 +1,110 @@
+import { useState } from "react";
+import { auth, db } from "../firebase";
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { useNavigate, Link } from "react-router-dom";
+
+function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const navigate = useNavigate();
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      navigate("/profile");
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    }
+
+    setLoading(false);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    const provider = new GoogleAuthProvider();
+
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      const userDocRef = doc(db, "users", user.uid);
+      const userSnapshot = await getDoc(userDocRef);
+
+      if (!userSnapshot.exists()) {
+        await setDoc(userDocRef, {
+          name: user.displayName || "",
+          email: user.email,
+          profilePhotoUrl: user.photoURL || "",
+          skills: [],
+          userType: "musician",
+          followersCount: 0,
+          followingCount: 0,
+          availability: []
+        });
+      }
+
+      navigate("/profile");
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <form className="bg-white p-8 rounded shadow-md w-full max-w-md space-y-4" onSubmit={handleLogin}>
+        <h2 className="text-2xl font-bold text-center">Login</h2>
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="border p-2 w-full rounded"
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          className="border p-2 w-full rounded"
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-blue-500 text-white px-4 py-2 w-full rounded hover:bg-blue-600 disabled:bg-blue-300"
+        >
+          {loading ? "Logging in..." : "Login"}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          className="bg-red-500 text-white px-4 py-2 w-full rounded hover:bg-red-600"
+        >
+          Login with Google
+        </button>
+
+        <p className="text-sm text-center">
+          Don't have an account? <Link to="/register" className="text-blue-500">Register</Link>
+        </p>
+      </form>
+    </div>
+  );
+}
+
+export default Login;
