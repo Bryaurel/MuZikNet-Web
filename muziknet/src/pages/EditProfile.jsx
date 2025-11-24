@@ -17,6 +17,7 @@ function EditProfile() {
     photoURL: "",
     username: "",
   });
+
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState("");
@@ -61,10 +62,7 @@ function EditProfile() {
 
       uploadTask.on(
         "state_changed",
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log("Upload is " + progress + "% done");
-        },
+        (snapshot) => {},
         (error) => {
           console.error(error);
           setError("Failed to upload photo.");
@@ -78,7 +76,7 @@ function EditProfile() {
             { photoURL, updatedAt: new Date() },
             { merge: true }
           );
-          setSuccess("Profile photo updated successfully!");
+          setSuccess("Profile photo updated!");
           setUploading(false);
         }
       );
@@ -107,29 +105,40 @@ function EditProfile() {
         { merge: true }
       );
 
-      setSuccess("Profile updated successfully!");
-      setTimeout(() => navigate("/profile"), 1500);
+      setSuccess("Profile updated!");
+      setTimeout(() => navigate("/profile"), 1200);
     } catch (err) {
       console.error("Error saving profile:", err);
-      setError("Failed to save profile. Please try again.");
+      setError("Failed to save profile.");
     }
   };
 
   if (loading)
     return (
-      <div className="flex justify-center items-center h-screen space-x-2 text-gray-700">
+      <div className="flex justify-center items-center h-screen text-gray-700 space-x-2">
         <span className="animate-spin">🎵</span>
-        <span>Loading...</span>
+        <span>Loading…</span>
       </div>
     );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="bg-white rounded-xl shadow-md max-w-lg mx-auto p-6">
-        <h2 className="text-2xl font-bold text-center mb-6">Edit Profile</h2>
+    <div className="min-h-screen bg-gray-50 p-6 flex justify-center">
+      <div className="bg-white shadow-lg rounded-2xl p-8 w-full max-w-xl relative">
 
+        {/* BACK BUTTON */}
+        <button
+          onClick={() => navigate("/profile")}
+          className="absolute top-4 left-4 text-gray-600 hover:underline text-sm"
+        >
+          ← Back to Profile
+        </button>
+
+        {/* TITLE */}
+        <h2 className="text-3xl font-semibold text-center mb-8">Edit Profile</h2>
+
+        {/* ALERTS */}
         {error && (
-          <div className="bg-red-100 text-red-600 p-2 rounded mb-3 text-center text-sm">
+          <div className="bg-red-100 text-red-700 p-2 rounded mb-3 text-center text-sm">
             {error}
           </div>
         )}
@@ -139,15 +148,19 @@ function EditProfile() {
           </div>
         )}
 
-        <form onSubmit={handleSave} className="space-y-4">
+        {/* FORM */}
+        <form onSubmit={handleSave} className="space-y-5">
+
+          {/* PHOTO */}
           <div className="flex flex-col items-center">
             <img
               src={formData.photoURL || "https://via.placeholder.com/100"}
               alt="Profile"
-              className="w-24 h-24 rounded-full object-cover mb-2"
+              className="w-28 h-28 rounded-full object-cover mb-2 shadow"
             />
-            <label className="cursor-pointer text-blue-500 text-sm hover:underline">
-              {uploading ? "Uploading..." : "Change photo"}
+
+            <label className="cursor-pointer text-blue-600 text-sm hover:underline">
+              {uploading ? "Uploading…" : "Change photo"}
               <input
                 type="file"
                 accept="image/*"
@@ -157,72 +170,94 @@ function EditProfile() {
             </label>
           </div>
 
-          <input
-            type="text"
-            name="fullName"
-            value={formData.fullName}
-            onChange={handleChange}
-            placeholder="Full Name"
-            className="w-full border border-gray-300 rounded-lg p-2"
-          />
+          {/* FULL NAME */}
+          <div>
+            <label className="block text-gray-700 mb-1">Full Name</label>
+            <input
+              type="text"
+              name="fullName"
+              value={formData.fullName}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
+            />
+          </div>
 
-          <input
-            type="text"
-            name="stageName"
-            value={formData.stageName}
-            onChange={handleChange}
-            placeholder="Stage Name (optional)"
-            className="w-full border border-gray-300 rounded-lg p-2"
-          />
+          {/* STAGE NAME */}
+          <div>
+            <label className="block text-gray-700 mb-1">Stage Name</label>
+            <input
+              type="text"
+              name="stageName"
+              value={formData.stageName}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
+            />
+          </div>
 
-          <input
-            type="text"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            placeholder="Username (unique)"
-            className="w-full border border-gray-300 rounded-lg p-2"
-          />
+          {/* USERNAME */}
+          <div>
+            <label className="block text-gray-700 mb-1">Username</label>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
+            />
+          </div>
 
-          <textarea
-            name="bio"
-            value={formData.bio}
-            onChange={handleChange}
-            placeholder="Bio"
-            rows="3"
-            className="w-full border border-gray-300 rounded-lg p-2"
-          ></textarea>
+          {/* BIO */}
+          <div>
+            <label className="block text-gray-700 mb-1">Bio</label>
+            <textarea
+              name="bio"
+              value={formData.bio}
+              onChange={handleChange}
+              rows="3"
+              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
+            ></textarea>
+          </div>
 
-          <input
-            type="text"
-            name="nationality"
-            value={formData.nationality}
-            onChange={handleChange}
-            placeholder="Nationality"
-            className="w-full border border-gray-300 rounded-lg p-2"
-          />
+          {/* NATIONALITY */}
+          <div>
+            <label className="block text-gray-700 mb-1">Nationality</label>
+            <input
+              type="text"
+              name="nationality"
+              value={formData.nationality}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
+            />
+          </div>
 
-          <input
-            type="text"
-            name="city"
-            value={formData.city}
-            onChange={handleChange}
-            placeholder="City of residence"
-            className="w-full border border-gray-300 rounded-lg p-2"
-          />
+          {/* CITY */}
+          <div>
+            <label className="block text-gray-700 mb-1">City of Residence</label>
+            <input
+              type="text"
+              name="city"
+              value={formData.city}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
+            />
+          </div>
 
-          <input
-            type="text"
-            name="instruments"
-            value={formData.instruments}
-            onChange={handleChange}
-            placeholder="Instruments / Skills"
-            className="w-full border border-gray-300 rounded-lg p-2"
-          />
+          {/* INSTRUMENTS */}
+          <div>
+            <label className="block text-gray-700 mb-1">Instruments / Skills</label>
+            <input
+              type="text"
+              name="instruments"
+              value={formData.instruments}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
+            />
+          </div>
 
+          {/* SAVE BUTTON */}
           <button
             type="submit"
-            className="w-full bg-blue-500 text-white rounded-lg py-2 hover:bg-blue-600 transition"
+            className="w-full bg-blue-600 text-white rounded-lg py-2 hover:bg-blue-700 transition"
           >
             Save Changes
           </button>

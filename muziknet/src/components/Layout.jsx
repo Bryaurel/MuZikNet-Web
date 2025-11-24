@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { Home, User, MessageCircle, Briefcase, Calendar, Music } from 'lucide-react';
 import { db } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
@@ -97,7 +98,7 @@ function Layout() {
               {results.map((user) => (
                 <div
                   key={user.id}
-                  onClick={() => goToUser(user.id)}
+                  onClick={() => navigate(`/user/${user.id}`)}
                   className="p-3 hover:bg-gray-100 cursor-pointer"
                 >
                   <p className="font-semibold text-[#333]">{user.username}</p>
@@ -111,10 +112,10 @@ function Layout() {
         </div>
 
         {/* NAV LINKS */}
-        <div className="space-x-6 text-lg">
+        <div className="space-x-6 text-lg"> 
           <Link to="/" className={`hover:text-[#6b4eff] ${isActive("/")}`}>
             Home
-          </Link>
+          </Link> 
           <Link
             to="/profile"
             className={`hover:text-[#6b4eff] ${isActive("/profile")}`}

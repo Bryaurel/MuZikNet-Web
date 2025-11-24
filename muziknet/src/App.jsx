@@ -12,6 +12,7 @@ import EditProfile from "./pages/EditProfile.jsx";
 import NewPostPage from "./pages/NewPostPage.jsx";
 import PostViewer from "./pages/PostViewer.jsx";
 import ChooseUsername from "./pages/ChooseUsername.jsx";
+import UserProfile from "./pages/UserProfile.jsx";
 
 import { auth, db } from "./firebase.js";
 import { useAuthState } from "react-firebase-hooks/auth";
@@ -86,6 +87,7 @@ function App() {
               <Route path="booking" element={<Booking />} />
               <Route path="new-post" element={<NewPostPage />} />
               <Route path="post/:postId" element={<PostViewer />} />
+              <Route path="/user/:uid" element={<UserProfile />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Route>
           )}
