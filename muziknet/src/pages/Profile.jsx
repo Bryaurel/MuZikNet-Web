@@ -21,6 +21,7 @@ function Profile() {
     city: "",
     instruments: "",
     photoURL: "",
+    username: "",
   });
 
   const [stats, setStats] = useState({
@@ -108,23 +109,30 @@ function Profile() {
       {/* Profile header */}
       <div className="flex items-center space-x-4">
         <div className="w-24 h-24 bg-gray-300 rounded-full overflow-hidden">
-          {profile.photoURL && (
+          {profile.photoURL ? (
             <img
               src={profile.photoURL}
               alt="Profile"
               className="w-full h-full object-cover"
             />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-500">
+              🎵
+            </div>
           )}
         </div>
 
         <div>
-          <h2 className="text-2xl font-bold">{profile.fullName}</h2>
-          <p className="text-gray-600 italic">
-            {profile.stageName ? `"${profile.stageName}"` : ""}
-          </p>
+          <h2 className="text-2xl font-bold">{profile.fullName || "Unnamed"}</h2>
+          {profile.stageName && (
+            <p className="text-gray-600 italic">"{profile.stageName}"</p>
+          )}
+          {profile.username && (
+            <p className="text-gray-400 text-sm">@{profile.username}</p>
+          )}
           <p className="text-gray-600">{profile.bio}</p>
           <p className="text-gray-500 text-sm">
-            {profile.nationality} • {profile.city}
+            {profile.nationality} {profile.city && `• ${profile.city}`}
           </p>
           <p className="text-gray-500 text-sm">{profile.instruments}</p>
 
@@ -174,8 +182,8 @@ function Profile() {
               className="relative group aspect-square rounded-xl overflow-hidden bg-gray-200 border-[3px] border-blue-400 border-dashed shadow-md cursor-pointer"
               onClick={() => navigate(`/post/${post.id}`)}
             >
-              {post.mediaURLs && post.mediaURLs[0] ? (
-                post.mediaURLs[0].match(/\.(mp4|mov|webm)$/i) ? (
+              {post.mediaURLs?.[0] ? (
+                /\.(mp4|mov|webm)$/i.test(post.mediaURLs[0]) ? (
                   <video
                     src={post.mediaURLs[0]}
                     className="w-full h-full object-cover"
@@ -196,7 +204,6 @@ function Profile() {
                 </div>
               )}
 
-              {/* Multi-media indicator */}
               {post.mediaURLs?.length > 1 && (
                 <div className="absolute top-1 right-1 bg-black bg-opacity-60 px-2 py-1 rounded-lg flex items-center">
                   <span className="text-white text-xs mr-1">🎶</span>

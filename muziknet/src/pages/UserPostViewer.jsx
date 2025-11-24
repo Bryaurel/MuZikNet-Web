@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { auth, db } from "../firebase";
 import {
@@ -11,7 +11,7 @@ import {
   addDoc,
   serverTimestamp,
   getDocs,
-  orderBy
+  orderBy,
 } from "firebase/firestore";
 
 export default function UserPostViewer() {
@@ -24,6 +24,9 @@ export default function UserPostViewer() {
   const [loading, setLoading] = useState(true);
 
   const currentUser = auth.currentUser;
+
+  // cache for commenter names to avoid repeated lookups
+  const commenterCacheRef = useRef({});
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -46,7 +49,7 @@ export default function UserPostViewer() {
     fetchPost();
   }, [postId, navigate]);
 
-  // Likes
+  // Likes (live)
   useEffect(() => {
     if (!post) return;
     const likesQ = query(collection(db, "likes"), where("postId", "==", post.id));
@@ -56,7 +59,7 @@ export default function UserPostViewer() {
     return () => unsubscribe();
   }, [post]);
 
-  // Comments
+  // Comments (live) + resolve commenter stage names with caching
   useEffect(() => {
     if (!post) return;
     const commentsQ = query(
@@ -64,12 +67,39 @@ export default function UserPostViewer() {
       where("postId", "==", post.id),
       orderBy("createdAt", "asc")
     );
-    const unsubscribe = onSnapshot(commentsQ, (snap) => {
-      const arr = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setComments(arr);
+    const unsubscribe = onSnapshot(commentsQ, async (snap) => {
+      const raw = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // find which userIds we need names for
+      const missingIds = Array.from(
+        new Set(raw.map((c) => c.userId).filter((id) => !commenterCacheRef.current[id]))
+      );
+
+      if (missingIds.length > 0) {
+        // fetch missing user documents in parallel
+        await Promise.all(
+          missingIds.map(async (uid) => {
+            try {
+              const uRef = doc(db, "users", uid);
+              const uSnap = await getDoc(uRef);
+              commenterCacheRef.current[uid] = uSnap.exists() ? uSnap.data().stageName || "Artist" : "Artist";
+            } catch (e) {
+              commenterCacheRef.current[uid] = "Artist";
+            }
+          })
+        );
+      }
+
+      // attach stageName to comments
+      const withNames = raw.map((c) => ({
+        ...c,
+        stageName: commenterCacheRef.current[c.userId] || (c.userId === currentUser?.uid ? "You" : "Artist"),
+      }));
+
+      setComments(withNames);
     });
+
     return () => unsubscribe();
-  }, [post]);
+  }, [post, currentUser]);
 
   const handleLike = async () => {
     if (!currentUser) return navigate("/login");
@@ -88,13 +118,13 @@ export default function UserPostViewer() {
   };
 
   const handleComment = async () => {
-    if (!currentUser || !commentText) return;
+    if (!currentUser || !commentText.trim()) return;
 
     const commentsRef = collection(db, "comments");
     await addDoc(commentsRef, {
       postId: post.id,
       userId: currentUser.uid,
-      text: commentText,
+      text: commentText.trim(),
       createdAt: serverTimestamp(),
     });
 
@@ -102,10 +132,25 @@ export default function UserPostViewer() {
   };
 
   const goBack = () => {
-    // Get saved scroll position from sessionStorage
-    const scrollY = sessionStorage.getItem("homeScroll") || 0;
-    navigate("/", { replace: true });
-    setTimeout(() => window.scrollTo(0, Number(scrollY)), 50);
+    // prefer history back so page isn't reloaded
+    try {
+      const saved = sessionStorage.getItem("homeScroll") || "0";
+      // if there is history, go back; else go to home.
+      if (window.history.length > 1) {
+        navigate(-1);
+        // small delay then ensure correct scroll
+        setTimeout(() => {
+          window.scrollTo(0, Number(saved));
+        }, 50);
+      } else {
+        navigate("/", { replace: true });
+        setTimeout(() => {
+          window.scrollTo(0, Number(saved));
+        }, 50);
+      }
+    } catch (e) {
+      navigate("/", { replace: true });
+    }
   };
 
   if (loading)
@@ -126,10 +171,7 @@ export default function UserPostViewer() {
     <div className="fixed inset-0 bg-black/90 z-50 text-white flex flex-col overflow-auto">
       {/* Top bar */}
       <div className="flex items-center justify-between p-3">
-        <button
-          onClick={goBack}
-          className="bg-white/10 px-3 py-1 rounded hover:bg-white/20"
-        >
+        <button onClick={goBack} className="bg-white/10 px-3 py-1 rounded hover:bg-white/20">
           ← Back
         </button>
         <div className="text-xs text-gray-400">{post.userStageName}</div>
@@ -139,17 +181,9 @@ export default function UserPostViewer() {
       <div className="flex-1 flex items-center justify-center px-4">
         {post.mediaURLs?.[0] ? (
           post.mediaURLs[0].match(/\.(mp4|mov|webm)$/i) ? (
-            <video
-              src={post.mediaURLs[0]}
-              controls
-              className="max-h-[80vh] max-w-full object-contain"
-            />
+            <video src={post.mediaURLs[0]} controls className="max-h-[80vh] max-w-full object-contain" />
           ) : (
-            <img
-              src={post.mediaURLs[0]}
-              alt="Post media"
-              className="max-h-[80vh] max-w-full object-contain"
-            />
+            <img src={post.mediaURLs[0]} alt="Post media" className="max-h-[80vh] max-w-full object-contain" />
           )
         ) : (
           <div className="text-gray-400">No media</div>
@@ -161,21 +195,16 @@ export default function UserPostViewer() {
         <p className="text-gray-300">{post.caption || "No caption"}</p>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleLike}
-            className="bg-blue-500 text-white px-3 py-1 rounded"
-          >
+          <button onClick={handleLike} className="bg-blue-500 text-white px-3 py-1 rounded">
             ♡ Like ({likesCount})
           </button>
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="text-sm text-gray-400">
-            Comments ({comments.length})
-          </div>
+          <div className="text-sm text-gray-400">Comments ({comments.length})</div>
           {comments.map((c) => (
             <div key={c.id} className="bg-white/10 p-2 rounded text-sm">
-              <strong>{c.userId === currentUser.uid ? "You" : c.userId}: </strong>
+              <strong>{c.userId === currentUser?.uid ? "You" : c.stageName}: </strong>
               {c.text}
             </div>
           ))}
@@ -189,10 +218,7 @@ export default function UserPostViewer() {
             onChange={(e) => setCommentText(e.target.value)}
             className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm text-black"
           />
-          <button
-            onClick={handleComment}
-            className="bg-gray-800 text-white px-3 py-1 rounded"
-          >
+          <button onClick={handleComment} className="bg-gray-800 text-white px-3 py-1 rounded">
             Post
           </button>
         </div>

@@ -1,53 +1,86 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db, storage } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const NewPostPage = () => {
   const [files, setFiles] = useState([]);
   const [caption, setCaption] = useState("");
   const [loading, setLoading] = useState(false);
+  const [userData, setUserData] = useState(null);
+
   const navigate = useNavigate();
   const user = auth.currentUser;
 
+  // Fetch username + profile photo for the post
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user) return;
+      const userRef = doc(db, "users", user.uid);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) setUserData(snap.data());
+    };
+    fetchUserData();
+  }, [user]);
+
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
+    const combined = [...files, ...selectedFiles].slice(0, 3);
+    setFiles(combined);
+  };
 
-    // Keep existing files + new ones, but max 3
-    const combinedFiles = [...files, ...selectedFiles].slice(0, 3);
-
-    setFiles(combinedFiles);
+  const removeFile = (index) => {
+    setFiles(files.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (files.length === 0) {
       alert("Please select at least one image or video before posting.");
       return;
     }
 
+    if (!userData) {
+      alert("User data not loaded yet. Try again in a moment.");
+      return;
+    }
+
     setLoading(true);
+
     try {
       const uploadedURLs = [];
 
-      // Upload all selected media files
+      // Upload files to Firebase Storage
       for (const file of files) {
-        const fileRef = ref(storage, `posts/${user.uid}/${Date.now()}_${file.name}`);
+        const fileRef = ref(
+          storage,
+          `posts/${user.uid}/${Date.now()}_${file.name}`
+        );
         await uploadBytes(fileRef, file);
         const url = await getDownloadURL(fileRef);
         uploadedURLs.push(url);
       }
 
-      // Add post to Firestore
+      // Add post to Firestore with new structure
       await addDoc(collection(db, "posts"), {
         userId: user.uid,
+        username: userData.username || "",
+        profilePhoto: userData.profilePhoto || "",
         caption: caption.trim() || "",
         mediaURLs: uploadedURLs,
+        likes: [],
+        comments: [],
         createdAt: serverTimestamp(),
       });
 
-      // Clear state before redirect
       setFiles([]);
       setCaption("");
 
@@ -58,11 +91,6 @@ const NewPostPage = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const removeFile = (index) => {
-    // Allow user to remove a file from selection
-    setFiles(files.filter((_, i) => i !== index));
   };
 
   return (
@@ -78,10 +106,13 @@ const NewPostPage = () => {
           onChange={handleFileChange}
         />
 
-        {/* Preview section */}
+        {/* Preview */}
         <div className="flex flex-wrap gap-3 justify-center">
           {files.map((file, i) => (
-            <div key={i} className="relative w-32 h-32 border rounded overflow-hidden">
+            <div
+              key={i}
+              className="relative w-32 h-32 border rounded overflow-hidden"
+            >
               {file.type.startsWith("image/") ? (
                 <img
                   src={URL.createObjectURL(file)}
@@ -95,7 +126,7 @@ const NewPostPage = () => {
                   className="w-full h-full object-cover"
                 />
               )}
-              {/* Remove button */}
+
               <button
                 type="button"
                 onClick={() => removeFile(i)}
@@ -107,7 +138,7 @@ const NewPostPage = () => {
           ))}
         </div>
 
-        {/* Caption input */}
+        {/* Caption */}
         <textarea
           placeholder="Add a caption (optional)"
           value={caption}
@@ -115,7 +146,7 @@ const NewPostPage = () => {
           className="border rounded p-2"
         />
 
-        {/* Submit button */}
+        {/* Submit */}
         <button
           type="submit"
           disabled={loading}

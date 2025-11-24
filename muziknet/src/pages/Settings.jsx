@@ -6,8 +6,12 @@ function Settings() {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await signOut(auth);
-    navigate("/login");
+    try {
+      await signOut(auth);
+      navigate("/login");
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
   };
 
   return (
@@ -15,7 +19,6 @@ function Settings() {
       <h1 className="text-2xl font-bold mb-6 text-center">Settings</h1>
 
       <div className="bg-white shadow rounded-xl p-4 space-y-4 max-w-md mx-auto">
-        {/* Dashboard */}
         <button
           onClick={() => navigate("/dashboard")}
           className="w-full text-left p-3 bg-gray-100 rounded-lg hover:bg-gray-200"
@@ -23,7 +26,6 @@ function Settings() {
           📊 Dashboard
         </button>
 
-        {/* Edit Profile */}
         <button
           onClick={() => navigate("/edit-profile")}
           className="w-full text-left p-3 bg-gray-100 rounded-lg hover:bg-gray-200"
@@ -31,7 +33,6 @@ function Settings() {
           ✏️ Edit Profile
         </button>
 
-        {/* Change Email Address */}
         <button
           onClick={() => alert("Feature coming soon!")}
           className="w-full text-left p-3 bg-gray-100 rounded-lg hover:bg-gray-200"
@@ -39,7 +40,6 @@ function Settings() {
           📧 Change Email Address
         </button>
 
-        {/* Change Password */}
         <button
           onClick={() => alert("Feature coming soon!")}
           className="w-full text-left p-3 bg-gray-100 rounded-lg hover:bg-gray-200"
@@ -47,7 +47,6 @@ function Settings() {
           🔒 Change Password
         </button>
 
-        {/* Manage Profile Visibility */}
         <button
           onClick={() => alert("Feature coming soon!")}
           className="w-full text-left p-3 bg-gray-100 rounded-lg hover:bg-gray-200"
@@ -55,7 +54,6 @@ function Settings() {
           👁️ Manage Profile Visibility
         </button>
 
-        {/* Log Out */}
         <button
           onClick={handleLogout}
           className="w-full text-left p-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"

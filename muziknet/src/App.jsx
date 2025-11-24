@@ -11,15 +11,16 @@ import Settings from "./pages/Settings.jsx";
 import EditProfile from "./pages/EditProfile.jsx";
 import NewPostPage from "./pages/NewPostPage.jsx";
 import PostViewer from "./pages/PostViewer.jsx";
-import UserPostViewer from "./pages/UserPostViewer.jsx";
+import ChooseUsername from "./pages/ChooseUsername.jsx";
 
 import { auth, db } from "./firebase.js";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 
 function App() {
   const [user, loading] = useAuthState(auth);
+  const [needsUsername, setNeedsUsername] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,7 +33,10 @@ function App() {
 
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (!data.fullName || !data.stageName) {
+
+          if (!data.username) {
+            setNeedsUsername(true); // show username popup first
+          } else if (!data.fullName || !data.stageName) {
             navigate("/edit-profile");
           }
         }
@@ -68,19 +72,24 @@ function App() {
 
       {/* PROTECTED ROUTES */}
       {user && isEmailVerified && (
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Home />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="edit-profile" element={<EditProfile />} />
-          <Route path="messages" element={<Messages />} />
-          <Route path="opportunities" element={<Opportunities />} />
-          <Route path="booking" element={<Booking />} />
-          <Route path="new-post" element={<NewPostPage />} />
-          <Route path="post/:postId" element={<PostViewer />} />
-          <Route path="user-post/:postId" element={<UserPostViewer />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Route>
+        <>
+          {needsUsername ? (
+            <Route path="*" element={<ChooseUsername />} />
+          ) : (
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Home />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="edit-profile" element={<EditProfile />} />
+              <Route path="messages" element={<Messages />} />
+              <Route path="opportunities" element={<Opportunities />} />
+              <Route path="booking" element={<Booking />} />
+              <Route path="new-post" element={<NewPostPage />} />
+              <Route path="post/:postId" element={<PostViewer />} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Route>
+          )}
+        </>
       )}
 
       {/* EMAIL NOT VERIFIED */}
