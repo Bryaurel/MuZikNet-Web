@@ -14,6 +14,11 @@ import PostViewer from "./pages/PostViewer.jsx";
 import ChooseUsername from "./pages/ChooseUsername.jsx";
 import UserProfile from "./pages/UserProfile.jsx";
 
+import NewOpportunity from "./pages/NewOpportunity.jsx";
+import OpportunityDetails from "./pages/OpportunityDetails.jsx";
+import Apply from "./pages/Apply.jsx";
+
+
 import { auth, db } from "./firebase.js";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useEffect, useState } from "react";
@@ -84,6 +89,10 @@ function App() {
               <Route path="edit-profile" element={<EditProfile />} />
               <Route path="messages" element={<Messages />} />
               <Route path="opportunities" element={<Opportunities />} />
+              <Route path="/opportunities/new" element={<NewOpportunity />} />
+              <Route path="/opportunities/:id" element={<OpportunityDetails />} />
+              <Route path="/opportunities/:id/apply" element={<Apply />} />
+
               <Route path="booking" element={<Booking />} />
               <Route path="new-post" element={<NewPostPage />} />
               <Route path="post/:postId" element={<PostViewer />} />

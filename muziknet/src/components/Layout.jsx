@@ -1,12 +1,14 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Home, User, MessageCircle, Briefcase, Calendar, Music } from 'lucide-react';
 import { db } from "../firebase";
+import { auth } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
 function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  const currentUser = auth.currentUser;
 
   const [searchInput, setSearchInput] = useState("");
   const [results, setResults] = useState([]);
@@ -20,6 +22,7 @@ function Layout() {
   // SEARCH FUNCTION
   const searchUsers = async (value) => {
     setSearchInput(value);
+
     if (value.trim().length === 0) {
       setResults([]);
       return;
@@ -48,10 +51,19 @@ function Layout() {
       ];
 
       const unique = Array.from(
-        new Map(combined.map(doc => [doc.id, { id: doc.id, ...doc.data() }])).values()
+        new Map(
+          combined.map((doc) => [
+            doc.id,
+            { id: doc.id, ...doc.data() },
+          ])
+        ).values()
       );
 
-      setResults(unique);
+      // 🔥 Remove logged-in user from search results
+      const withoutSelf = unique.filter((u) => u.id !== currentUser?.uid);
+
+      setResults(withoutSelf);
+
     } catch (err) {
       console.error("Search error:", err);
     }
@@ -62,7 +74,7 @@ function Layout() {
   const goToUser = (userId) => {
     setSearchInput("");
     setResults([]);
-    navigate(`/profile/${userId}`);
+    navigate(`/user/${userId}`);
   };
 
   return (
@@ -87,6 +99,7 @@ function Layout() {
           {/* SEARCH RESULTS */}
           {searchInput.length > 0 && (
             <div className="absolute bg-white border border-gray-200 rounded-lg mt-1 w-full shadow-md max-h-60 overflow-y-auto z-50">
+
               {loading && (
                 <div className="p-3 text-gray-500">Searching...</div>
               )}
@@ -98,13 +111,23 @@ function Layout() {
               {results.map((user) => (
                 <div
                   key={user.id}
-                  onClick={() => navigate(`/user/${user.id}`)}
-                  className="p-3 hover:bg-gray-100 cursor-pointer"
+                  onClick={() => goToUser(user.id)}
+                  className="flex items-center gap-3 p-3 hover:bg-gray-100 cursor-pointer"
                 >
-                  <p className="font-semibold text-[#333]">{user.username}</p>
-                  <p className="text-sm text-gray-600">
-                    {user.fullName} — {user.stageName || "No stage name"}
-                  </p>
+                  {/* Profile Photo */}
+                  <img
+                    src={user.profilePhoto || "/default-profile.jpg"}
+                    alt="profile"
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+
+                  {/* User text */}
+                  <div>
+                    <p className="font-semibold text-[#333]">{user.username}</p>
+                    <p className="text-sm text-gray-600">
+                      {user.fullName} — {user.stageName || "No stage name"}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -112,35 +135,24 @@ function Layout() {
         </div>
 
         {/* NAV LINKS */}
-        <div className="space-x-6 text-lg"> 
+        <div className="space-x-6 text-lg">
           <Link to="/" className={`hover:text-[#6b4eff] ${isActive("/")}`}>
             Home
-          </Link> 
-          <Link
-            to="/profile"
-            className={`hover:text-[#6b4eff] ${isActive("/profile")}`}
-          >
+          </Link>
+          <Link to="/profile" className={`hover:text-[#6b4eff] ${isActive("/profile")}`}>
             Profile
           </Link>
-          <Link
-            to="/messages"
-            className={`hover:text-[#6b4eff] ${isActive("/messages")}`}
-          >
+          <Link to="/messages" className={`hover:text-[#6b4eff] ${isActive("/messages")}`}>
             Messages
           </Link>
-          <Link
-            to="/opportunities"
-            className={`hover:text-[#6b4eff] ${isActive("/opportunities")}`}
-          >
+          <Link to="/opportunities" className={`hover:text-[#6b4eff] ${isActive("/opportunities")}`}>
             Opportunities
           </Link>
-          <Link
-            to="/booking"
-            className={`hover:text-[#6b4eff] ${isActive("/booking")}`}
-          >
+          <Link to="/booking" className={`hover:text-[#6b4eff] ${isActive("/booking")}`}>
             Booking
           </Link>
         </div>
+
       </nav>
 
       {/* MAIN CONTENT */}
