@@ -1,4 +1,3 @@
-// PostViewer.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { db, auth } from "../firebase";
@@ -137,19 +136,19 @@ function PostViewer() {
       </button>
 
       {/* MEDIA DISPLAY */}
-      <div className="relative w-full rounded-xl overflow-hidden bg-gray-200 border border-gray-400">
+      <div className="relative mx-auto max-w-xl rounded-xl overflow-hidden bg-gray-200 border border-gray-400">
         {post.mediaURLs?.length > 0 ? (
           /\.(mp4|mov|webm)$/i.test(post.mediaURLs[0]) ? (
             <video
               src={post.mediaURLs[0]}
               controls
-              className="w-full h-auto"
+              className="w-full max-h-[400px] object-cover"
             />
           ) : (
             <img
               src={post.mediaURLs[0]}
               alt="Post Media"
-              className="w-full h-auto object-cover"
+              className="w-full max-h-[400px] object-cover"
             />
           )
         ) : (
@@ -158,6 +157,7 @@ function PostViewer() {
           </div>
         )}
       </div>
+
 
       {/* LEFT/RIGHT ARROWS IF FROM PROFILE */}
       {fromProfile && profilePosts.length > 1 && (

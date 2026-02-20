@@ -1,98 +1,78 @@
+// src/pages/MyOpportunities.jsx
 import React, { useEffect, useState } from "react";
-import { db, auth } from "../../firebase";
-import { collection, query, where, onSnapshot, deleteDoc, doc } from "firebase/firestore";
-import { Link } from "react-router-dom";
-import Sidebar from "../components/Sidebar";
+import { auth, db } from "../firebase";
+import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
 
 export default function MyOpportunities() {
-  const [opportunities, setOpportunities] = useState([]);
+  const [user, setUser] = useState(null);
+  const [myOpportunities, setMyOpportunities] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const uid = auth.currentUser.uid;
-    const q = query(
-      collection(db, "opportunities"),
-      where("createdBy", "==", uid)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setOpportunities(data);
-    });
-
-    return () => unsubscribe();
+    const unsubAuth = auth.onAuthStateChanged(u => setUser(u || null));
+    return () => unsubAuth();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, "opportunities"), where("createdBy", "==", user.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      setMyOpportunities(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, (err) => {
+      console.error("MyOpps snapshot error", err);
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, [user]);
+
   const handleDelete = async (id) => {
-    await deleteDoc(doc(db, "opportunities", id));
+    if (!confirm("Delete this opportunity?")) return;
+    try {
+      await deleteDoc(doc(db, "opportunities", id));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
+  const handleEdit = (id) => {
+    window.location.href = `/opportunities/${id}/edit`;
+  };
+
+  const handleApproveToggle = async (id, status) => {
+    // only admins should see this button (we'll rely on security rules in production)
+    try {
+      await updateDoc(doc(db, "opportunities", id), { status });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (loading) return <div className="p-6 text-center">Loading...</div>;
+
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
+    <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow">
+      <h2 className="text-2xl font-semibold mb-4">My opportunities</h2>
 
-      <div className="flex-1 p-6">
-        <h1 className="text-2xl font-bold mb-6">My Opportunities</h1>
-
-        {opportunities.length === 0 ? (
-          <p>You haven't posted any opportunities yet.</p>
-        ) : (
-          <div className="space-y-4">
-            {opportunities.map((op) => (
-              <div key={op.id} className="border p-4 rounded-lg shadow-sm bg-white">
-                
-                <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">{op.title}</h2>
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      op.status === "approved"
-                        ? "bg-green-100 text-green-700"
-                        : op.status === "pending"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {op.status}
-                  </span>
-                </div>
-
-                <p className="text-gray-600 mt-1">{op.category}</p>
-
-                <div className="flex gap-4 mt-4">
-                  <Link
-                    to={`/opportunities/${op.id}`}
-                    className="px-4 py-2 bg-blue-600 text-white rounded"
-                  >
-                    View
-                  </Link>
-
-                  <Link
-                    to={`/opportunities/edit/${op.id}`}
-                    className="px-4 py-2 bg-yellow-600 text-white rounded"
-                  >
-                    Edit
-                  </Link>
-
-                  <button
-                    onClick={() => handleDelete(op.id)}
-                    className="px-4 py-2 bg-red-600 text-white rounded"
-                  >
-                    Delete
-                  </button>
-
-                  {op.status === "approved" && (
-                    <Link
-                      to={`/dashboard/my-opportunities/${op.id}/applications`}
-                      className="px-4 py-2 bg-gray-800 text-white rounded"
-                    >
-                      View Applications
-                    </Link>
-                  )}
-                </div>
+      {myOpportunities.length === 0 ? (
+        <div className="text-gray-500">You haven't posted any opportunities yet.</div>
+      ) : (
+        <div className="space-y-4">
+          {myOpportunities.map(op => (
+            <div key={op.id} className="border rounded p-4 flex items-center justify-between">
+              <div>
+                <div className="font-semibold">{op.title}</div>
+                <div className="text-sm text-gray-600">{op.status} • {op.location}</div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <div className="flex gap-2">
+                <button onClick={() => handleEdit(op.id)} className="px-3 py-1 border rounded">Edit</button>
+                <button onClick={() => handleDelete(op.id)} className="px-3 py-1 border rounded">Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

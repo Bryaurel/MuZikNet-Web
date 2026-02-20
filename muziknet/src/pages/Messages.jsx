@@ -44,7 +44,7 @@ export default function Messages() {
     return () => unsubscribe();
   }, []);
 
-  // Load conversations
+  // Conversations
   useEffect(() => {
     if (!currentUser) return;
 
@@ -53,21 +53,48 @@ export default function Messages() {
       where("participants", "array-contains", currentUser.uid)
     );
 
-    const unsubscribe = onSnapshot(q, (snap) => {
+    const unsubscribe = onSnapshot(q, async (snap) => {
       const convos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setConversations(convos);
 
-      // Select first automatically
-      if (!selectedConversation && convos.length > 0) {
-        setSelectedConversation(convos[0]);
+      // Attach user profile (username + photo) for left list
+      const enriched = await Promise.all(
+        convos.map(async (c) => {
+          const otherUid = c.participants.find((id) => id !== currentUser.uid);
+          const userDoc = await getDocs(doc(db, "users", otherUid));
+
+          return {
+            ...c,
+            otherUser: {
+              uid: otherUid,
+              username: userDoc.exists() ? userDoc.data().username : "Unknown",
+              profilePhoto: userDoc.exists() ? userDoc.data()["profile-photo"] : "",
+            },
+          };
+        })
+      );
+
+      setConversations(enriched);
+
+      // Respect convoId passed from navigate()
+      if (location.state?.convoId) {
+        const found = enriched.find((c) => c.id === location.state.convoId);
+        if (found) {
+          setSelectedConversation(found);
+          return;
+        }
+      }
+
+      // If none selected, select the first only once
+      if (!selectedConversation && enriched.length > 0) {
+        setSelectedConversation(enriched[0]);
       }
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, selectedConversation]);
 
-  // Load messages
-  const [messages, setMessages] = useState([]);
+
+  // Messages loading
   useEffect(() => {
     if (!selectedConversation) return;
 
@@ -82,9 +109,8 @@ export default function Messages() {
 
     const unsubscribe = onSnapshot(q, (snap) => {
       const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setMessages(msgs);
+      postMessage(msgs);
 
-      // Auto scroll
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
@@ -92,6 +118,7 @@ export default function Messages() {
 
     return () => unsubscribe();
   }, [selectedConversation]);
+
 
   // Send new message
   const handleSendMessage = async () => {
@@ -121,28 +148,29 @@ export default function Messages() {
     setMessageText("");
   };
 
-  // Start conversation
+  // Start or open a conversation
   const startConversation = async (otherUser) => {
     if (!currentUser) return;
 
     const uids = [currentUser.uid, otherUser.uid].sort();
-
-    // ❗ FIXED THE ERROR HERE
     const convoId = `${uids[0]}_${uids[1]}`;
 
     await setDoc(
       doc(db, "conversations", convoId),
       {
         participants: uids,
-        lastMessage: "",
-        lastTimestamp: null,
+        // eslint-disable-next-line no-undef
+        updatedAt: serverTimestamp(),
       },
       { merge: true }
     );
 
     setShowStartModal(false);
-    setSelectedConversation({ id: convoId, participants: uids });
+
+    // Do NOT manually preload otherUser data here, Firestore listener will hydrate automatically
+    setSelectedConversation({ id: convoId });
   };
+
 
   // Read status
   const renderReadStatus = (msg) => {
@@ -228,14 +256,14 @@ export default function Messages() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
-              {messages.length === 0 && (
+              {onmessage.length === 0 && (
                 <p className="text-gray-500 text-center mt-4">
                   No messages yet
                 </p>
               )}
 
-              {messages.map((msg, i) => {
-                const prevMsg = messages[i - 1];
+              {onmessage.map((msg, i) => {
+                const prevMsg = onmessage[i - 1];
                 const showDate =
                   !prevMsg ||
                   !isSameDay(

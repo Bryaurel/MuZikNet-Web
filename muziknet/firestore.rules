@@ -1,33 +1,91 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // Ensure username uniqueness
-      allow create: if request.resource.data.username == null 
-        || !exists(/databases/$(database)/documents/users/{anyUserId}) 
-        || !get(/databases/$(database)/documents/users/{anyUserId}).data.username.matches(request.resource.data.username);
+    // ===========================
+    // USERS
+    // ===========================
+    match /users/{userId} {
+      // Users can read their own profile & others' public profiles
+      allow read: if true;
+
+      // Users can update only their own account
+      allow write: if request.auth != null && request.auth.uid == userId;
+
+      // Username uniqueness check on creation
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && (
+          request.resource.data.username == null ||
+          !exists(
+            /databases/$(database)/documents/users/$(request.resource.data.username)
+          )
+        );
     }
 
+    // ===========================
+    // POSTS
+    // ===========================
     match /posts/{postId} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
+    // ===========================
+    // COMMENTS
+    // ===========================
     match /comments/{commentId} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
+    // ===========================
+    // LIKES
+    // ===========================
     match /likes/{likeId} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
+    // ===========================
+    // OPPORTUNITIES
+    // ===========================
     match /opportunities/{opportunityId} {
       allow read: if true;
-      allow write: if request.auth != null;
+
+      // Anyone logged in can create an opportunity → status = "pending"
+      allow create: if request.auth != null;
+
+      // Users can update or delete only their own if still pending
+      allow update, delete: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && resource.data.status == "pending";
+
+      // Admin approves → MUST check request.auth.token.admin == true
+      allow update: if request.auth.token.admin == true;
     }
+
+    // ===========================
+    // BOOKINGS
+    // ===========================
+    match /bookings/{bookingId} {
+
+      allow read: if request.auth != null;
+
+      // Anyone logged in can create a booking
+      allow create: if request.auth != null
+        && request.resource.data.clientUserId == request.auth.uid;
+
+      // A user can update only when:
+      // - They are the one being booked (to accept/decline)
+      // - Status is not "accepted" (after acceptance booking becomes locked)
+      allow update: if request.auth != null
+        && resource.data.performerUserId == request.auth.uid
+        && resource.data.status != "accepted";
+
+      // Nobody deletes bookings (optional).
+      allow delete: if false;
+    }
+
   }
 }

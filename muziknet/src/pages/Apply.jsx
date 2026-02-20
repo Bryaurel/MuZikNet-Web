@@ -1,98 +1,95 @@
 // src/pages/Apply.jsx
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { auth, db, storage } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db, auth, storage } from "../firebase";
+import { doc, getDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
-/**
- * Apply.jsx
- * - Form to apply to an opportunity
- * - collects: message (cover letter optional), CV upload (optional), contact info auto from profile/email
- * - saves application to subcollection opportunities/{id}/applications
- */
-
 export default function Apply() {
-  const { id } = useParams();
+  const { id } = useParams(); // opportunity id
   const navigate = useNavigate();
-
-  const [currentUser, setCurrentUser] = useState(null);
-  const [message, setMessage] = useState("");
+  const [op, setOp] = useState(null);
+  const [form, setForm] = useState({ message: "", cv: null, name: "", email: "" });
   const [uploading, setUploading] = useState(false);
-  const [cvFile, setCvFile] = useState(null);
-  const [cvURL, setCvURL] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged((u) => setCurrentUser(u || null));
-    return () => unsub();
-  }, []);
+    if (!id) return;
+    getDoc(doc(db, "opportunities", id)).then(snap => {
+      if (snap.exists()) setOp({ id: snap.id, ...snap.data() });
+    });
+  }, [id]);
 
-  const handleFile = (e) => setCvFile(e.target.files[0] || null);
+  const handleFileChange = (e) => {
+    setForm((p) => ({ ...p, cv: e.target.files[0] }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!currentUser) return navigate("/login");
-
-    setSubmitting(true);
+    if (!auth.currentUser) {
+      setError("Please sign in to apply.");
+      return;
+    }
+    setError("");
+    setUploading(true);
 
     try {
-      let uploadedURL = null;
-      if (cvFile) {
-        setUploading(true);
-        const path = `applications/${id}/${currentUser.uid}/${Date.now()}_${cvFile.name}`;
-        const fileRef = ref(storage, path);
-        const task = uploadBytesResumable(fileRef, cvFile);
-        await new Promise((resolve, reject) => {
-          task.on("state_changed", null, reject, async () => {
-            uploadedURL = await getDownloadURL(task.snapshot.ref);
-            resolve();
+      let cvUrl = "";
+      if (form.cv) {
+        const path = `applications/${id}/${auth.currentUser.uid}-${Date.now()}-${form.cv.name}`;
+        const storageRef = ref(storage, path);
+        const uploadTask = uploadBytesResumable(storageRef, form.cv);
+        await new Promise((res, rej) => {
+          uploadTask.on("state_changed", null, rej, async () => {
+            cvUrl = await getDownloadURL(uploadTask.snapshot.ref);
+            res();
           });
         });
-        setUploading(false);
-        setCvURL(uploadedURL);
       }
 
+      // Save application under subcollection applications
       await addDoc(collection(db, "opportunities", id, "applications"), {
-        applicantUid: currentUser.uid,
-        applicantName: currentUser.displayName || null,
-        message: message.trim() || "",
-        cvURL: uploadedURL || null,
-        status: "submitted",
+        userId: auth.currentUser.uid,
+        name: form.name || auth.currentUser.displayName || "",
+        email: form.email || auth.currentUser.email || "",
+        message: form.message,
+        cvUrl: cvUrl || "",
         createdAt: serverTimestamp(),
       });
 
-      alert("Application submitted!");
+      // optional: notify owner (out of scope) or redirect
       navigate(`/opportunities/${id}`);
     } catch (err) {
-      console.error("Apply error", err);
-      alert("Failed to submit application. Try again.");
+      console.error(err);
+      setError("Failed to submit application.");
     } finally {
-      setSubmitting(false);
+      setUploading(false);
     }
   };
 
+  if (!op) return <div className="text-center p-6">Loading...</div>;
+
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-4">Apply</h1>
+    <div className="max-w-3xl mx-auto p-6 bg-white rounded shadow">
+      <h2 className="text-xl font-semibold mb-2">Apply to: {op.title}</h2>
+      <p className="text-sm text-gray-600 mb-4">{op.organizer}</p>
 
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-4">
+      {error && <div className="p-2 bg-red-100 text-red-700 rounded mb-3">{error}</div>}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium">Cover message (optional)</label>
-          <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className="w-full border px-3 py-2 rounded"></textarea>
+          <label className="block text-sm text-gray-600">Message (optional)</label>
+          <textarea value={form.message} onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))} rows={5} className="w-full border rounded p-2" />
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Upload CV (optional)</label>
-          <input type="file" accept=".pdf,.doc,.docx" onChange={handleFile} />
-          {uploading && <div className="text-sm text-gray-500">Uploading CV...</div>}
+          <label className="block text-sm text-gray-600">CV (optional)</label>
+          <input type="file" accept=".pdf,.doc,.docx" onChange={handleFileChange} />
         </div>
 
-        <div className="flex justify-end gap-3">
-          <button type="button" className="px-4 py-2 border rounded" onClick={() => navigate(-1)}>Back</button>
-          <button disabled={submitting} type="submit" className="px-4 py-2 bg-purple-600 text-white rounded">
-            {submitting ? "Submitting..." : "Submit Application"}
-          </button>
+        <div className="flex gap-2">
+          <button className="px-4 py-2 bg-purple-600 text-white rounded" disabled={uploading}>{uploading ? "Sending..." : "Send application"}</button>
+          <button type="button" onClick={() => navigate(-1)} className="px-4 py-2 border rounded">Cancel</button>
         </div>
       </form>
     </div>

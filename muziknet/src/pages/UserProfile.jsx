@@ -16,6 +16,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import PostViewer from "./PostViewer";
+import { Link } from "lucide-react";
 
 export default function UserProfile() {
   const { uid } = useParams(); // UID of the user to view
@@ -162,26 +163,19 @@ export default function UserProfile() {
       return;
     }
     if (uid === currentUser.uid) return;
-
+  
     const uids = [currentUser.uid, uid].sort();
     const convoId = `${uids[0]}_${uids[1]}`;
-    const convoRef = doc(db, "conversations", convoId);
-
-    try {
-      // create or merge conversation doc so it exists
-      await setDoc(convoRef, {
-        participants: uids,
-        lastMessage: "",
-        lastTimestamp: null,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-
-      // navigate to messages page and pass convoId in state so Messages.jsx can open it
-      navigate("/messages", { state: { convoId } });
-    } catch (err) {
-      console.error("Error creating/opening conversation:", err);
-    }
+  
+    await setDoc(
+      doc(db, "conversations", convoId),
+      { participants: uids, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+  
+    navigate("/messages", { state: { convoId } });
   };
+  
 
   // helper to format joined date safely
   const joinedDate = () => {
@@ -215,11 +209,17 @@ export default function UserProfile() {
         <div className="w-full md:w-1/3 bg-white rounded-lg">
           <div className="p-6 flex flex-col items-center text-center">
             <div className="w-28 h-28 rounded-full overflow-hidden border mb-4">
-              <img
-                src={userData.photoURL || "/default-avatar.png"}
-                alt={userData.username || userData.fullName}
-                className="w-full h-full object-cover"
-              />
+              {userData.photoURL ? (
+                <img
+                  src={userData.photoURL}
+                  alt={userData.username || userData.fullName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-3xl text-gray-400">
+                  🎵
+                </div>
+              )}
             </div>
 
             <h2 className="text-xl font-semibold">{userData.fullName || "Unnamed"}</h2>

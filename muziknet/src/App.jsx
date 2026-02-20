@@ -18,6 +18,8 @@ import NewOpportunity from "./pages/NewOpportunity.jsx";
 import OpportunityDetails from "./pages/OpportunityDetails.jsx";
 import Apply from "./pages/Apply.jsx";
 
+import EditCalendar from "./pages/EditCalendar.jsx";
+import MyBookings from "./pages/MyBookings.jsx";
 
 import { auth, db } from "./firebase.js";
 import { useAuthState } from "react-firebase-hooks/auth";
@@ -94,6 +96,9 @@ function App() {
               <Route path="/opportunities/:id/apply" element={<Apply />} />
 
               <Route path="booking" element={<Booking />} />
+              <Route path="/calendar/edit" element={<EditCalendar />} />
+              <Route path="/my-bookings" element={<MyBookings />} />
+              
               <Route path="new-post" element={<NewPostPage />} />
               <Route path="post/:postId" element={<PostViewer />} />
               <Route path="/user/:uid" element={<UserProfile />} />

@@ -64,7 +64,7 @@ const NewPostPage = () => {
           storage,
           `posts/${user.uid}/${Date.now()}_${file.name}`
         );
-        await uploadBytes(fileRef, file);
+        await uploadBytes(fileRef, file, { contentType: file.type });
         const url = await getDownloadURL(fileRef);
         uploadedURLs.push(url);
       }

@@ -115,12 +115,20 @@ function Layout() {
                   className="flex items-center gap-3 p-3 hover:bg-gray-100 cursor-pointer"
                 >
                   {/* Profile Photo */}
-                  <img
-                    src={user.profilePhoto || "/default-profile.jpg"}
-                    alt="profile"
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-
+                  <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt={user.username || user.fullName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl text-gray-400">
+                        🎵
+                      </div>
+                    )}
+                  </div>
+                    
                   {/* User text */}
                   <div>
                     <p className="font-semibold text-[#333]">{user.username}</p>
