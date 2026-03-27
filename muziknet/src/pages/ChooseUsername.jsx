@@ -1,68 +1,81 @@
+// src/pages/ChooseUsername.jsx
 import { useState } from "react";
 import { auth, db } from "../firebase";
 import { doc, setDoc, getDocs, collection, query, where } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
 
 export default function ChooseUsername() {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleSave = async () => {
     setError("");
-    if (!username) return setError("Username cannot be empty.");
+    const cleanUsername = username.trim().toLowerCase();
+    
+    if (!cleanUsername) return setError("Username cannot be empty.");
+    if (cleanUsername.includes(" ")) return setError("Username cannot contain spaces.");
 
     setLoading(true);
     try {
       // Check uniqueness
       const usersRef = collection(db, "users");
-      const q = query(usersRef, where("username", "==", username));
+      const q = query(usersRef, where("username", "==", cleanUsername));
       const snap = await getDocs(q);
 
       if (!snap.empty) {
-        setError("Username already taken. Choose another.");
+        setError("This username is already taken. Please choose another.");
         setLoading(false);
         return;
       }
 
-      // Save username
       const user = auth.currentUser;
       if (!user) throw new Error("User not found");
 
-      await setDoc(doc(db, "users", user.uid), { username }, { merge: true });
+      // Save username - App.jsx will automatically detect this and switch the view!
+      await setDoc(doc(db, "users", user.uid), { 
+        username: cleanUsername,
+        updatedAt: new Date()
+      }, { merge: true });
 
-      navigate("/edit-profile"); // go to profile edit next
     } catch (err) {
       console.error(err);
       setError("Error saving username. Try again.");
-    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gray-100">
-      <div className="bg-white p-8 rounded-xl shadow-md max-w-md w-full">
-        <h2 className="text-2xl font-bold mb-4 text-center">Choose Your Username</h2>
+    <div className="flex justify-center items-center h-screen bg-[#f5f5f5]">
+      <div className="bg-white p-10 rounded-2xl shadow-xl max-w-md w-full border border-gray-100">
+        <div className="text-center mb-8">
+          <div className="text-4xl mb-3">👋</div>
+          <h2 className="text-2xl font-bold text-gray-900">Claim your username</h2>
+          <p className="text-gray-500 text-sm mt-2">This is how people will find and tag you on MuZikNet.</p>
+        </div>
+
         {error && (
-          <div className="bg-red-100 text-red-600 p-2 rounded mb-3 text-center text-sm">
+          <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg mb-4 text-center text-sm font-medium">
             {error}
           </div>
         )}
-        <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value.trim())}
-          className="w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
+
+        <div className="relative mb-6">
+          <span className="absolute left-4 top-3 text-gray-400 font-bold">$</span>
+          <input
+            type="text"
+            placeholder="your_name"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase())}
+            className="w-full border border-gray-300 rounded-xl py-3 pl-8 pr-4 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition bg-gray-50"
+          />
+        </div>
+
         <button
           onClick={handleSave}
-          disabled={loading}
-          className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition disabled:opacity-50"
+          disabled={loading || !username}
+          className="w-full bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-purple-600/20"
         >
-          {loading ? "Saving..." : "Save Username"}
+          {loading ? "Checking..." : "Continue"}
         </button>
       </div>
     </div>

@@ -10,13 +10,13 @@ import {
   query,
   where,
   orderBy,
-  getDocs,
   setDoc,
   deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import PostViewer from "./PostViewer";
-import { Link } from "lucide-react";
+import { MapPin } from "lucide-react";
+import DefaultAvatar from "../components/DefaultAvatar";
 
 export default function UserProfile() {
   const { uid } = useParams(); // UID of the user to view
@@ -31,349 +31,173 @@ export default function UserProfile() {
   const [selectedPostIndex, setSelectedPostIndex] = useState(null);
   const [loadingFollowAction, setLoadingFollowAction] = useState(false);
 
-  // get current logged-in user
+  // Auth Listener
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((u) => {
-      if (u) setCurrentUser(u);
-      else setCurrentUser(null);
+      setCurrentUser(u || null);
     });
     return () => unsub();
   }, []);
 
-  // realtime userData listener
+  // Real-time User Data
   useEffect(() => {
     if (!uid) return;
     const uRef = doc(db, "users", uid);
     const unsub = onSnapshot(uRef, (snap) => {
       if (snap.exists()) setUserData(snap.data());
-      else setUserData(null);
-    }, (err) => {
-      console.error("User snapshot error:", err);
     });
     return () => unsub();
   }, [uid]);
 
-  // realtime followers & following listeners
+  // Followers & Following Listener
   useEffect(() => {
     if (!uid) return;
-
-    const followersRef = collection(db, "users", uid, "followers");
-    const followingRef = collection(db, "users", uid, "following");
-
-    const unsubF = onSnapshot(followersRef, (snap) => {
-      setFollowers(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
-    }, (err) => console.error("Followers snapshot error:", err));
-
-    const unsubG = onSnapshot(followingRef, (snap) => {
-      setFollowing(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
-    }, (err) => console.error("Following snapshot error:", err));
-
-    return () => {
-      unsubF(); unsubG();
-    };
+    const unsubF = onSnapshot(collection(db, "users", uid, "followers"), (snap) => {
+      setFollowers(snap.docs.map((d) => d.id));
+    });
+    const unsubG = onSnapshot(collection(db, "users", uid, "following"), (snap) => {
+      setFollowing(snap.docs.map((d) => d.id));
+    });
+    return () => { unsubF(); unsubG(); };
   }, [uid]);
 
-  // watch whether current user follows this profile
+  // Check Follow State
   useEffect(() => {
-    if (!currentUser || !uid) {
-      setFollowed(false);
-      return;
-    }
-    // check existence in the user's followers subcollection
-    const ref = doc(db, "users", uid, "followers", currentUser.uid);
-    let unsub = () => {};
-    // realtime check
-    try {
-      unsub = onSnapshot(ref, (snap) => {
-        setFollowed(!!snap.exists());
-      }, (err) => {
-        // If doc path doesn't exist yet (or permission), fallback to false
-        console.error("follow state snapshot error:", err);
-        setFollowed(false);
-      });
-    } catch (err) {
-      setFollowed(false);
-    }
+    if (!currentUser || !uid) return;
+    const unsub = onSnapshot(doc(db, "users", uid, "followers", currentUser.uid), (snap) => {
+      setFollowed(snap.exists());
+    });
     return () => unsub();
   }, [currentUser, uid]);
 
-  // realtime posts listener (3-per-row gallery)
+  // User Posts Listener
   useEffect(() => {
     if (!uid) return;
-    const postsQuery = query(
-      collection(db, "posts"),
-      where("userId", "==", uid),
-      orderBy("createdAt", "desc")
-    );
-    const unsub = onSnapshot(postsQuery, (snap) => {
-      const fetched = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setPosts(fetched);
-    }, (err) => console.error("Posts snapshot error:", err));
+    const q = query(collection(db, "posts"), where("userId", "==", uid), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(q, (snap) => {
+      setPosts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
     return () => unsub();
   }, [uid]);
 
-  // Follow / Unfollow implementation that updates Firestore
   const handleFollowToggle = async () => {
-    if (!currentUser) {
-      navigate("/login");
-      return;
-    }
-    if (!uid || uid === currentUser.uid) return; // can't follow yourself
-
+    if (!currentUser) return navigate("/login");
     setLoadingFollowAction(true);
-    try {
-      const followerDocRef = doc(db, "users", uid, "followers", currentUser.uid);
-      const followingDocRef = doc(db, "users", currentUser.uid, "following", uid);
-
-      if (followed) {
-        // unfollow: remove both docs
-        await deleteDoc(followerDocRef);
-        await deleteDoc(followingDocRef);
-        setFollowed(false);
-      } else {
-        // follow: create both docs with a minimal payload
-        const smallProfile = {
-          fullName: currentUser.displayName || "",
-          photoURL: currentUser.photoURL || "",
-          username: currentUser.displayName ? "" : "",
-          followedAt: serverTimestamp(),
-        };
-        await setDoc(followerDocRef, {
-          ...smallProfile,
-          uid: currentUser.uid,
-        });
-        await setDoc(followingDocRef, {
-          uid,
-          followedAt: serverTimestamp(),
-        });
-        setFollowed(true);
-      }
-    } catch (err) {
-      console.error("Follow/unfollow error:", err);
-      // no UI alert here to keep it minimal; you can add one if desired
-    } finally {
-      setLoadingFollowAction(false);
+    const followerRef = doc(db, "users", uid, "followers", currentUser.uid);
+    const followingRef = doc(db, "users", currentUser.uid, "following", uid);
+    
+    if (followed) {
+      await deleteDoc(followerRef);
+      await deleteDoc(followingRef);
+    } else {
+      await setDoc(followerRef, { uid: currentUser.uid, followedAt: serverTimestamp() });
+      await setDoc(followingRef, { uid, followedAt: serverTimestamp() });
     }
+    setLoadingFollowAction(false);
   };
 
-  // Start or open a conversation and navigate to Messages with convoId in state
   const handleMessage = async () => {
-    if (!currentUser) {
-      navigate("/login");
-      return;
-    }
-    if (uid === currentUser.uid) return;
-  
+    if (!currentUser) return navigate("/login");
     const uids = [currentUser.uid, uid].sort();
     const convoId = `${uids[0]}_${uids[1]}`;
-  
-    await setDoc(
-      doc(db, "conversations", convoId),
-      { participants: uids, updatedAt: serverTimestamp() },
-      { merge: true }
-    );
-  
+    await setDoc(doc(db, "conversations", convoId), { participants: uids, updatedAt: serverTimestamp() }, { merge: true });
     navigate("/messages", { state: { convoId } });
   };
-  
 
-  // helper to format joined date safely
-  const joinedDate = () => {
-    if (!userData?.createdAt) return null;
-    try {
-      // if Firestore timestamp object
-      if (userData.createdAt.seconds) {
-        return new Date(userData.createdAt.seconds * 1000).toLocaleDateString();
-      }
-      // if plain date string or number
-      return new Date(userData.createdAt).toLocaleDateString();
-    } catch {
-      return null;
-    }
-  };
+  if (!userData) return <div className="p-10 text-center animate-pulse text-brand-600">🎵 Loading Profile...</div>;
 
-  if (!userData) return <div className="p-4 text-gray-500">Loading user...</div>;
-
-  // instruments might be stored as string or array; normalize to array
+  // Logic to handle instruments display
   const instrumentsArray = Array.isArray(userData.instruments)
     ? userData.instruments
     : typeof userData.instruments === "string" && userData.instruments.trim().length > 0
       ? userData.instruments.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
 
+  const joinedDate = userData.createdAt?.toDate ? userData.createdAt.toDate().toLocaleDateString() : "New Member";
+
   return (
-    <div className="max-w-4xl mx-auto mt-6 p-6 bg-white rounded-lg shadow">
-      {/* Top */}
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Profile Card */}
-        <div className="w-full md:w-1/3 bg-white rounded-lg">
-          <div className="p-6 flex flex-col items-center text-center">
-            <div className="w-28 h-28 rounded-full overflow-hidden border mb-4">
-              {userData.photoURL ? (
-                <img
-                  src={userData.photoURL}
-                  alt={userData.username || userData.fullName}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-3xl text-gray-400">
-                  🎵
-                </div>
-              )}
-            </div>
-
-            <h2 className="text-xl font-semibold">{userData.fullName || "Unnamed"}</h2>
-
-            {/* stageName in purple */}
-            {userData.stageName && (
-              <p className="text-purple-600 font-medium mt-1">{userData.stageName}</p>
+    <div className="max-w-4xl mx-auto mt-6 p-6 bg-white rounded-2xl shadow-soft border border-gray-100">
+      <div className="flex flex-col md:flex-row gap-8">
+        
+        {/* Left Side: Info Card */}
+        <div className="w-full md:w-1/3 flex flex-col items-center text-center">
+          <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-md bg-gray-100 mb-4">
+            {userData.photoURL ? (
+              <img src={userData.photoURL} alt={userData.stageName} className="w-full h-full object-cover" />
+            ) : (
+              <DefaultAvatar className="w-full h-full text-4xl" />
             )}
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">{userData.stageName || userData.fullName}</h2>
+          <p className="text-gray-400 text-sm font-medium">${userData.username}</p>
 
-            {/* username with $ and less opacity */}
-            {userData.username && (
-              <p className="text-gray-500 mt-1">${userData.username}</p>
+          {/* Primary Role Badge (Green) */}
+          <div className="mt-3">
+            {userData?.roles?.includes("Talent") && userData?.roles?.includes("Host") ? (
+              <span className="bg-green-100 text-green-800 border border-green-200 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full">Talent & Host</span>
+            ) : userData?.roles?.includes("Host") ? (
+              <span className="bg-green-100 text-green-800 border border-green-200 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full">Host</span>
+            ) : (
+              <span className="bg-green-100 text-green-800 border border-green-200 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full">Talent</span>
             )}
+          </div>
 
-            {/* bio */}
-            {userData.bio && <p className="text-gray-700 mt-3">{userData.bio}</p>}
+          <p className="text-gray-600 mt-4 text-sm leading-relaxed">{userData.bio}</p>
 
-            {/* small info */}
-            <div className="mt-4 space-y-2 text-sm text-gray-600">
-              {instrumentsArray.length > 0 && (
-                <div className="flex gap-2 justify-center flex-wrap">
-                  {instrumentsArray.map((ins) => (
-                    <span key={ins} className="px-2 py-1 bg-gray-100 rounded text-sm">
-                      {ins}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-2 justify-center">
-                {userData.city && <span>{userData.city}</span>}
-                {userData.nationality && <span>• {userData.nationality}</span>}
-              </div>
-              {joinedDate() && <div>Joined {joinedDate()}</div>}
-            </div>
+          {/* Location & Skills (Phase 1 Fix) */}
+          <div className="flex flex-wrap gap-2 mt-5 items-center justify-center">
+            {userData.city && (
+              <span className="flex items-center gap-1 text-xs font-semibold text-gray-500 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
+                <MapPin className="w-3 h-3" /> {userData.city}
+              </span>
+            )}
+            {instrumentsArray.slice(0, 3).map((skill, idx) => (
+              <span key={idx} className="text-xs font-bold text-brand-600 bg-brand-50 px-3 py-1 rounded-full border border-brand-100">{skill}</span>
+            ))}
+          </div>
 
-            {/* Edit/Follow/Message Buttons */}
-            <div className="mt-4 w-full flex gap-2">
-              {currentUser && currentUser.uid === uid ? (
-                <button
-                  onClick={() => navigate("/edit-profile")}
-                  className="flex-1 bg-gray-100 py-2 rounded hover:bg-gray-200"
-                >
-                  Edit Profile
+          <div className="mt-6 w-full flex gap-2">
+            {currentUser?.uid === uid ? (
+              <button onClick={() => navigate("/edit-profile")} className="flex-1 bg-gray-100 py-2.5 rounded-xl font-bold text-gray-700">Edit Profile</button>
+            ) : (
+              <>
+                <button onClick={handleFollowToggle} disabled={loadingFollowAction} className={`flex-1 py-2.5 rounded-xl font-bold transition ${followed ? "bg-gray-200 text-gray-600" : "bg-brand-600 text-white shadow-md shadow-brand-500/20"}`}>
+                  {followed ? "Unfollow" : "Follow"}
                 </button>
-              ) : (
-                <>
-                  <button
-                    onClick={handleFollowToggle}
-                    disabled={loadingFollowAction}
-                    className={`flex-1 py-2 rounded ${
-                      followed ? "bg-gray-300" : "bg-purple-600 text-white"
-                    }`}
-                  >
-                    {followed ? "Unfollow" : "Follow"}
-                  </button>
+                <button onClick={handleMessage} className="flex-1 py-2.5 rounded-xl font-bold bg-white border border-gray-200 text-gray-700">Message</button>
+              </>
+            )}
+          </div>
 
-                  <button
-                    onClick={handleMessage}
-                    className="flex-1 py-2 rounded bg-white border hover:bg-gray-50"
-                  >
-                    Message
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Stats */}
-            <div className="mt-4 w-full flex justify-between text-sm text-gray-700 font-medium px-4">
-              <div className="text-center">
-                <div className="text-lg">{followers.length}</div>
-                <div className="text-xs text-gray-500">Followers</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg">{following.length}</div>
-                <div className="text-xs text-gray-500">Following</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg">{posts.length}</div>
-                <div className="text-xs text-gray-500">Posts</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg">0</div>
-                <div className="text-xs text-gray-500">Gigs</div>
-              </div>
-            </div>
+          <div className="mt-8 w-full flex justify-around border-t border-gray-100 pt-6">
+            <div className="text-center"><div className="text-lg font-bold text-gray-900">{followers.length}</div><div className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Followers</div></div>
+            <div className="text-center"><div className="text-lg font-bold text-gray-900">{following.length}</div><div className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Following</div></div>
+            <div className="text-center"><div className="text-lg font-bold text-gray-900">{posts.length}</div><div className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Posts</div></div>
           </div>
         </div>
 
-        {/* Posts area */}
-        <div className="w-full md:w-2/3">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Posts</h3>
-            {currentUser && currentUser.uid === uid && (
-              <button
-                onClick={() => navigate("/new-post")}
-                className="px-3 py-2 bg-purple-600 text-white rounded"
-              >
-                Create Post
-              </button>
-            )}
-          </div>
-
+        {/* Right Side: Grid */}
+        <div className="flex-1">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">Portfolio</h3>
           {posts.length === 0 ? (
-            <div className="w-full text-center text-5xl py-10 text-gray-400 text-lg">
-              No posts 🎵
-            </div>
+            <div className="bg-gray-50 rounded-2xl p-10 text-center border-2 border-dashed border-gray-200 text-gray-400">No posts yet 🎵</div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {posts.map((post, index) => (
-                <div
-                  key={post.id}
-                  className="aspect-square bg-gray-200 rounded overflow-hidden cursor-pointer"
-                  onClick={() => setSelectedPostIndex(index)}
-                >
-                  {post.mediaURLs?.[0] ? (
-                    /\.(mp4|mov|webm)$/i.test(post.mediaURLs[0]) ? (
-                      <video
-                        src={post.mediaURLs[0]}
-                        className="w-full h-full object-cover"
-                        muted
-                        playsInline
-                        loop
-                      />
-                    ) : (
-                      <img
-                        src={post.mediaURLs[0]}
-                        alt={post.caption || "Post image"}
-                        className="w-full h-full object-cover"
-                      />
-                    )
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-500">
-                      🎵
-                    </div>
-                  )}
-
-                  {post.mediaURLs?.length > 1 && (
-                    <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                      +{post.mediaURLs.length - 1}
-                    </div>
-                  )}
+                <div key={post.id} className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer relative" onClick={() => setSelectedPostIndex(index)}>
+                  <img src={post.mediaURLs?.[0]} alt="" className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
-
-      {/* PostViewer modal (re-uses your existing PostViewer) */}
+      
       {selectedPostIndex !== null && (
-        <PostViewer
-          posts={posts}
-          initialIndex={selectedPostIndex}
-          onClose={() => setSelectedPostIndex(null)}
+        <PostViewer 
+          posts={posts} 
+          initialIndex={selectedPostIndex} 
+          onClose={() => setSelectedPostIndex(null)} 
         />
       )}
     </div>

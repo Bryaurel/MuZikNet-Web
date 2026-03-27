@@ -4,23 +4,23 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
+import { Mic2, Ticket, Star, ArrowLeft, Upload } from "lucide-react";
 
-function EditProfile() {
+function EditProfile({ isOnboarding = false }) {
   const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({
     fullName: "",
     stageName: "",
     bio: "",
-    nationality: "",
     city: "",
     instruments: "",
     photoURL: "",
-    username: "",
+    roles: [], 
   });
 
+  const [accountType, setAccountType] = useState(""); // "talent", "host", or "both"
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
@@ -28,27 +28,44 @@ function EditProfile() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-
         try {
           const docRef = doc(db, "users", currentUser.uid);
           const docSnap = await getDoc(docRef);
 
           if (docSnap.exists()) {
-            setFormData((prev) => ({ ...prev, ...docSnap.data() }));
+            const data = docSnap.data();
+            const savedRoles = data.roles || [];
+            
+            // Map existing roles back to the UI selection
+            if (savedRoles.includes("Talent") && savedRoles.includes("Host")) setAccountType("both");
+            else if (savedRoles.includes("Talent")) setAccountType("talent");
+            else if (savedRoles.includes("Host")) setAccountType("host");
+
+            setFormData((prev) => ({ 
+              ...prev, 
+              ...data,
+              roles: savedRoles,
+              fullName: data.fullName || currentUser.displayName || "" 
+            }));
           }
         } catch (err) {
           console.error("Error loading profile:", err);
-          setError("Error loading your profile.");
         }
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleRoleSelect = (type) => {
+    setAccountType(type);
+    if (type === "talent") setFormData(prev => ({ ...prev, roles: ["Talent"] }));
+    if (type === "host") setFormData(prev => ({ ...prev, roles: ["Host"] }));
+    if (type === "both") setFormData(prev => ({ ...prev, roles: ["Talent", "Host"] }));
   };
 
   const handlePhotoUpload = async (e) => {
@@ -60,10 +77,7 @@ function EditProfile() {
       const fileRef = ref(storage, `profilePhotos/${user.uid}`);
       const uploadTask = uploadBytesResumable(fileRef, file);
 
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {},
-        (error) => {
+      uploadTask.on("state_changed", null, (error) => {
           console.error(error);
           setError("Failed to upload photo.");
           setUploading(false);
@@ -71,17 +85,11 @@ function EditProfile() {
         async () => {
           const photoURL = await getDownloadURL(uploadTask.snapshot.ref);
           setFormData((prev) => ({ ...prev, photoURL }));
-          await setDoc(
-            doc(db, "users", user.uid),
-            { photoURL, updatedAt: new Date() },
-            { merge: true }
-          );
-          setSuccess("Profile photo updated!");
+          await setDoc(doc(db, "users", user.uid), { photoURL }, { merge: true });
           setUploading(false);
         }
       );
     } catch (err) {
-      console.error("Error uploading photo:", err);
       setError("Failed to upload photo.");
       setUploading(false);
     }
@@ -90,185 +98,97 @@ function EditProfile() {
   const handleSave = async (e) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
 
-    if (!user) {
-      setError("No user found. Please sign in again.");
-      return;
-    }
+    if (!formData.stageName.trim()) return setError("Stage Name / Display Name is required.");
+    if (formData.roles.length === 0) return setError("Please select how you want to use MuZikNet.");
 
     try {
       const userRef = doc(db, "users", user.uid);
-      await setDoc(
-        userRef,
-        { ...formData, updatedAt: new Date() },
-        { merge: true }
-      );
-
-      setSuccess("Profile updated!");
-      setTimeout(() => navigate("/profile"), 1200);
+      await setDoc(userRef, { ...formData, updatedAt: new Date() }, { merge: true });
+      
+      if (!isOnboarding) navigate("/profile");
     } catch (err) {
-      console.error("Error saving profile:", err);
+      console.error(err);
       setError("Failed to save profile.");
     }
   };
 
-  if (loading)
-    return (
-      <div className="flex justify-center items-center h-screen text-gray-700 space-x-2">
-        <span className="animate-spin">🎵</span>
-        <span>Loading…</span>
-      </div>
-    );
+  if (loading) return <div className="flex justify-center items-center h-screen bg-[#f8f9fc] text-brand-600 animate-pulse text-4xl">🎵</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 flex justify-center">
-      <div className="bg-white shadow-lg rounded-2xl p-8 w-full max-w-xl relative">
-
-        {/* BACK BUTTON */}
-        <button
-          onClick={() => navigate("/profile")}
-          className="absolute top-4 left-4 text-gray-600 hover:underline text-sm"
-        >
-          ← Back to Profile
-        </button>
-
-        {/* TITLE */}
-        <h2 className="text-3xl font-semibold text-center mb-8">Edit Profile</h2>
-
-        {/* ALERTS */}
-        {error && (
-          <div className="bg-red-100 text-red-700 p-2 rounded mb-3 text-center text-sm">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="bg-green-100 text-green-700 p-2 rounded mb-3 text-center text-sm">
-            {success}
-          </div>
+    <div className="min-h-screen bg-[#f8f9fc] p-4 md:p-6 flex justify-center items-center">
+      <div className="glass-card p-6 md:p-10 w-full max-w-3xl relative">
+        
+        {!isOnboarding && (
+          <button onClick={() => navigate("/profile")} className="absolute top-6 left-6 text-gray-400 hover:text-brand-600 transition flex items-center gap-1 text-sm font-medium">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
         )}
 
-        {/* FORM */}
-        <form onSubmit={handleSave} className="space-y-5">
+        <div className="text-center mb-8 mt-4 md:mt-0">
+          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+            {isOnboarding ? "Set up your profile" : "Edit Profile"}
+          </h2>
+          {isOnboarding && <p className="text-gray-500 mt-2">Choose how you want to use the platform.</p>}
+        </div>
 
-          {/* PHOTO */}
-          <div className="flex flex-col items-center">
-            <img
-              src={formData.photoURL || "https://via.placeholder.com/100"}
-              alt="Profile"
-              className="w-28 h-28 rounded-full object-cover mb-2 shadow"
-            />
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-center text-sm font-medium">{error}</div>}
 
-            <label className="cursor-pointer text-blue-600 text-sm hover:underline">
-              {uploading ? "Uploading…" : "Change photo"}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoUpload}
-                className="hidden"
-              />
-            </label>
+        <form onSubmit={handleSave} className="space-y-8">
+
+          <div className="border-t border-gray-100 pt-8">
+            <div className="flex flex-col md:flex-row gap-8">
+              
+              {/* PHOTO UPLOAD */}
+              <div className="flex flex-col items-center flex-shrink-0">
+                <div className="relative w-32 h-32 mb-4">
+                  <img
+                    src={formData.photoURL || "https://via.placeholder.com/150"}
+                    alt="Profile"
+                    className="w-full h-full rounded-full object-cover shadow-sm border-4 border-white bg-gray-100"
+                  />
+                </div>
+                <label className="cursor-pointer flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-full text-xs font-semibold hover:bg-gray-50 transition shadow-sm">
+                  {uploading ? "Uploading..." : <><Upload className="w-3.5 h-3.5"/> Change Photo</>}
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                </label>
+              </div>
+
+              {/* TEXT FIELDS */}
+              <div className="flex-1 space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Full Name</label>
+                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Stage / Display Name *</label>
+                    <input type="text" name="stageName" value={formData.stageName} onChange={handleChange} className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" required />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">City of Residence</label>
+                  <input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="e.g. Kigali, Rwanda" className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Instruments & Skills (Top 3)</label>
+                  <input type="text" name="instruments" value={formData.instruments} onChange={handleChange} placeholder="e.g. Singer, Guitar, Sound Engineer" className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Bio</label>
+                  <textarea name="bio" value={formData.bio} onChange={handleChange} rows="4" placeholder="Tell the community about yourself..." className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm resize-none"></textarea>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* FULL NAME */}
-          <div>
-            <label className="block text-gray-700 mb-1">Full Name</label>
-            <input
-              type="text"
-              name="fullName"
-              value={formData.fullName}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
-            />
-          </div>
-
-          {/* STAGE NAME */}
-          <div>
-            <label className="block text-gray-700 mb-1">Stage Name</label>
-            <input
-              type="text"
-              name="stageName"
-              value={formData.stageName}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
-            />
-          </div>
-
-          {/* USERNAME */}
-          <div>
-            <label className="block text-gray-700 mb-1">Username</label>
-            <input
-              type="text"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
-            />
-          </div>
-
-          {/* BIO */}
-          <div>
-            <label className="block text-gray-700 mb-1">Bio</label>
-            <textarea
-              name="bio"
-              value={formData.bio}
-              onChange={handleChange}
-              rows="3"
-              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
-            ></textarea>
-          </div>
-
-          {/* NATIONALITY */}
-          <div>
-            <label className="block text-gray-700 mb-1">Nationality</label>
-            <input
-              type="text"
-              name="nationality"
-              value={formData.nationality}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
-            />
-          </div>
-
-          {/* CITY */}
-          <div>
-            <label className="block text-gray-700 mb-1">City of Residence</label>
-            <input
-              type="text"
-              name="city"
-              value={formData.city}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
-            />
-          </div>
-
-          {/* INSTRUMENTS */}
-          <div>
-            <label className="block text-gray-700 mb-1">Instruments / Skills</label>
-            <input
-              type="text"
-              name="instruments"
-              value={formData.instruments}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg p-2 bg-gray-100"
-            />
-          </div>
-
-          {/* SAVE BUTTON */}
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white rounded-lg py-2 hover:bg-blue-700 transition"
-          >
-            Save Changes
+          <button type="submit" className="w-full bg-brand-600 text-white font-bold rounded-xl py-4 hover:bg-brand-700 transition shadow-lg shadow-brand-500/30">
+            {isOnboarding ? "Complete Setup & Enter Platform" : "Save Changes"}
           </button>
         </form>
-
-        <button
-          onClick={() => navigate("/settings")}
-          className="w-full mt-4 text-sm text-gray-600 hover:underline"
-        >
-          ← Back to Settings
-        </button>
       </div>
     </div>
   );
