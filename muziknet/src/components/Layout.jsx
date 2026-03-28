@@ -1,5 +1,6 @@
 // src/components/Layout.jsx
 import DefaultAvatar from "./DefaultAvatar";
+import NotificationDropdown from "./NotificationDropdown";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
@@ -129,8 +130,11 @@ function Layout() {
           )}
         </div>
 
-        {/* RIGHT SIDE: Mini Profile & Logout */}
+        {/* RIGHT SIDE: Notifications, Mini Profile & Logout */}
         <div className="flex items-center gap-4">
+          
+          <NotificationDropdown currentUser={currentUser} />
+
           <div className="hidden sm:flex items-center gap-3 pr-4 border-r border-gray-200">
             <div className="text-right">
               <p className="text-sm font-bold text-gray-900">{userProfile?.stageName || "Artist"}</p>
@@ -150,7 +154,15 @@ function Layout() {
           </div>
           
           <button 
-            onClick={() => { signOut(auth); navigate('/login'); }}
+            onClick={async () => { 
+              try {
+                await signOut(auth); 
+                // Hard refresh to the login page kills all "zombie" listeners instantly
+                window.location.href = "/login"; 
+              } catch (err) {
+                console.error(err);
+              }
+            }}
             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
             title="Logout"
           >

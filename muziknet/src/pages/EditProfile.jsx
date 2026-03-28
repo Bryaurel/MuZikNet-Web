@@ -1,16 +1,18 @@
+// src/pages/EditProfile.jsx
 import { useEffect, useState } from "react";
 import { auth, db, storage } from "../firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
-import { Mic2, Ticket, Star, ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Upload, Check, X, Loader2 } from "lucide-react";
 
 function EditProfile({ isOnboarding = false }) {
   const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({
     fullName: "",
     stageName: "",
+    username: "", // Added username field
     bio: "",
     city: "",
     instruments: "",
@@ -18,7 +20,8 @@ function EditProfile({ isOnboarding = false }) {
     roles: [], 
   });
 
-  const [accountType, setAccountType] = useState(""); // "talent", "host", or "both"
+  const [initialUsername, setInitialUsername] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState("idle"); // 'idle', 'checking', 'available', 'taken'
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -34,19 +37,12 @@ function EditProfile({ isOnboarding = false }) {
 
           if (docSnap.exists()) {
             const data = docSnap.data();
-            const savedRoles = data.roles || [];
-            
-            // Map existing roles back to the UI selection
-            if (savedRoles.includes("Talent") && savedRoles.includes("Host")) setAccountType("both");
-            else if (savedRoles.includes("Talent")) setAccountType("talent");
-            else if (savedRoles.includes("Host")) setAccountType("host");
-
             setFormData((prev) => ({ 
               ...prev, 
               ...data,
-              roles: savedRoles,
               fullName: data.fullName || currentUser.displayName || "" 
             }));
+            setInitialUsername(data.username || "");
           }
         } catch (err) {
           console.error("Error loading profile:", err);
@@ -57,40 +53,52 @@ function EditProfile({ isOnboarding = false }) {
     return () => unsubscribe();
   }, []);
 
-  const handleChange = (e) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
+  // Real-time unique username check
+  useEffect(() => {
+    if (!formData.username || formData.username === initialUsername) {
+      setUsernameStatus("idle");
+      return;
+    }
 
-  const handleRoleSelect = (type) => {
-    setAccountType(type);
-    if (type === "talent") setFormData(prev => ({ ...prev, roles: ["Talent"] }));
-    if (type === "host") setFormData(prev => ({ ...prev, roles: ["Host"] }));
-    if (type === "both") setFormData(prev => ({ ...prev, roles: ["Talent", "Host"] }));
+    const checkUsername = async () => {
+      setUsernameStatus("checking");
+      const q = query(collection(db, "users"), where("username", "==", formData.username.toLowerCase()));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        setUsernameStatus("available");
+      } else {
+        setUsernameStatus("taken");
+      }
+    };
+
+    const timeoutId = setTimeout(checkUsername, 500); // Debounce check
+    return () => clearTimeout(timeoutId);
+  }, [formData.username, initialUsername]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    // Format username: lowercase and no spaces
+    if (name === "username") {
+      setFormData(prev => ({ ...prev, [name]: value.toLowerCase().replace(/\s/g, "") }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || !user) return;
-
     setUploading(true);
     try {
       const fileRef = ref(storage, `profilePhotos/${user.uid}`);
-      const uploadTask = uploadBytesResumable(fileRef, file);
-
-      uploadTask.on("state_changed", null, (error) => {
-          console.error(error);
-          setError("Failed to upload photo.");
-          setUploading(false);
-        },
-        async () => {
-          const photoURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setFormData((prev) => ({ ...prev, photoURL }));
-          await setDoc(doc(db, "users", user.uid), { photoURL }, { merge: true });
-          setUploading(false);
-        }
-      );
+      const uploadTask = await uploadBytesResumable(fileRef, file);
+      const photoURL = await getDownloadURL(uploadTask.ref);
+      setFormData((prev) => ({ ...prev, photoURL }));
+      await setDoc(doc(db, "users", user.uid), { photoURL }, { merge: true });
     } catch (err) {
       setError("Failed to upload photo.");
+    } finally {
       setUploading(false);
     }
   };
@@ -99,16 +107,15 @@ function EditProfile({ isOnboarding = false }) {
     e.preventDefault();
     setError("");
 
-    if (!formData.stageName.trim()) return setError("Stage Name / Display Name is required.");
-    if (formData.roles.length === 0) return setError("Please select how you want to use MuZikNet.");
+    if (!formData.username.trim()) return setError("Username is required.");
+    if (usernameStatus === "taken") return setError("Username is already taken.");
+    if (!formData.stageName.trim()) return setError("Stage Name is required.");
 
     try {
       const userRef = doc(db, "users", user.uid);
       await setDoc(userRef, { ...formData, updatedAt: new Date() }, { merge: true });
-      
       if (!isOnboarding) navigate("/profile");
     } catch (err) {
-      console.error(err);
       setError("Failed to save profile.");
     }
   };
@@ -125,68 +132,83 @@ function EditProfile({ isOnboarding = false }) {
           </button>
         )}
 
-        <div className="text-center mb-8 mt-4 md:mt-0">
+        <div className="text-center mb-8">
           <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            {isOnboarding ? "Set up your profile" : "Edit Profile"}
+            {isOnboarding ? "Finish your setup" : "Edit Profile"}
           </h2>
-          {isOnboarding && <p className="text-gray-500 mt-2">Choose how you want to use the platform.</p>}
         </div>
 
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-center text-sm font-medium">{error}</div>}
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-center text-sm font-medium border border-red-100">{error}</div>}
 
-        <form onSubmit={handleSave} className="space-y-8">
+        <form onSubmit={handleSave} className="space-y-6">
+          <div className="flex flex-col items-center">
+            <div className="relative w-32 h-32 mb-4">
+              <img
+                src={formData.photoURL || "https://via.placeholder.com/150"}
+                alt="Profile"
+                className="w-full h-full rounded-full object-cover shadow-sm border-4 border-white bg-gray-100"
+              />
+              <label className="absolute bottom-0 right-0 cursor-pointer bg-brand-600 text-white p-2 rounded-full shadow-lg hover:bg-brand-700 transition">
+                <Upload className="w-4 h-4"/>
+                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+              </label>
+            </div>
+            {uploading && <p className="text-xs text-brand-600 font-bold animate-pulse">Uploading photo...</p>}
+          </div>
 
-          <div className="border-t border-gray-100 pt-8">
-            <div className="flex flex-col md:flex-row gap-8">
-              
-              {/* PHOTO UPLOAD */}
-              <div className="flex flex-col items-center flex-shrink-0">
-                <div className="relative w-32 h-32 mb-4">
-                  <img
-                    src={formData.photoURL || "https://via.placeholder.com/150"}
-                    alt="Profile"
-                    className="w-full h-full rounded-full object-cover shadow-sm border-4 border-white bg-gray-100"
-                  />
-                </div>
-                <label className="cursor-pointer flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-full text-xs font-semibold hover:bg-gray-50 transition shadow-sm">
-                  {uploading ? "Uploading..." : <><Upload className="w-3.5 h-3.5"/> Change Photo</>}
-                  <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                </label>
-              </div>
-
-              {/* TEXT FIELDS */}
-              <div className="flex-1 space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Full Name</label>
-                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Stage / Display Name *</label>
-                    <input type="text" name="stageName" value={formData.stageName} onChange={handleChange} className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" required />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">City of Residence</label>
-                  <input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="e.g. Kigali, Rwanda" className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Instruments & Skills (Top 3)</label>
-                  <input type="text" name="instruments" value={formData.instruments} onChange={handleChange} placeholder="e.g. Singer, Guitar, Sound Engineer" className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Bio</label>
-                  <textarea name="bio" value={formData.bio} onChange={handleChange} rows="4" placeholder="Tell the community about yourself..." className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm resize-none"></textarea>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* USERNAME FIELD WITH VALIDATION UI */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Username *</label>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  name="username" 
+                  value={formData.username} 
+                  onChange={handleChange} 
+                  placeholder="unique_username"
+                  className={`w-full border rounded-xl p-3 bg-gray-50 focus:bg-white outline-none transition-all text-sm ${
+                    usernameStatus === 'taken' ? 'border-red-500' : 'border-gray-200 focus:ring-2 focus:ring-brand-500'
+                  }`} 
+                  required 
+                />
+                <div className="absolute right-3 top-3">
+                  {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                  {usernameStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
+                  {usernameStatus === 'taken' && <X className="w-4 h-4 text-red-500" />}
                 </div>
               </div>
+              {usernameStatus === 'taken' && <p className="text-[10px] text-red-500 mt-1 font-bold">This username is already taken.</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Stage Name *</label>
+              <input type="text" name="stageName" value={formData.stageName} onChange={handleChange} className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" required />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Full Name</label>
+              <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">City</label>
+              <input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Instruments & Skills</label>
+            <input type="text" name="instruments" value={formData.instruments} onChange={handleChange} placeholder="e.g. Guitar, Vocals" className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Bio</label>
+            <textarea name="bio" value={formData.bio} onChange={handleChange} rows="3" className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm resize-none"></textarea>
+          </div>
+
           <button type="submit" className="w-full bg-brand-600 text-white font-bold rounded-xl py-4 hover:bg-brand-700 transition shadow-lg shadow-brand-500/30">
-            {isOnboarding ? "Complete Setup & Enter Platform" : "Save Changes"}
+            {isOnboarding ? "Complete Setup" : "Save Changes"}
           </button>
         </form>
       </div>

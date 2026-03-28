@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { db } from "../firebase";
 import { doc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { MapPin, Zap, User, Send, X } from "lucide-react";
+import { MapPin, Zap, User, Send, X, Clock } from "lucide-react";
 import DefaultAvatar from "./DefaultAvatar";
 
 export default function BookingCard({ user, currentUser }) {
@@ -13,6 +13,10 @@ export default function BookingCard({ user, currentUser }) {
   const [bookForm, setBookForm] = useState({
     eventType: "",
     date: "",
+    timeFrom: "",
+    timeTo: "",
+    location: "",
+    skills: "",
     pay: "",
     details: ""
   });
@@ -29,27 +33,71 @@ export default function BookingCard({ user, currentUser }) {
     setSending(true);
 
     try {
-      // 1. Generate the structured message
-      const text = `🎸 **Booking Request**\n\nHi ${user.stageName || user.fullName}, I'd like to book you for an upcoming event!\n\n**Event Type:** ${bookForm.eventType}\n**Date:** ${bookForm.date}\n**Proposed Pay:** ${bookForm.pay}\n**Details:** ${bookForm.details}`;
+      // 1. Create a formal Booking Document in the database
+      let startDate = new Date(bookForm.date);
+      let endDate = new Date(bookForm.date);
       
-      // 2. Create the unified conversation ID (Instagram style 1-on-1)
+      if (bookForm.timeFrom) {
+        const [h, m] = bookForm.timeFrom.split(":");
+        startDate.setHours(parseInt(h, 10), parseInt(m, 10));
+      } else {
+        startDate.setHours(12, 0);
+      }
+
+      if (bookForm.timeTo) {
+        const [h, m] = bookForm.timeTo.split(":");
+        endDate.setHours(parseInt(h, 10), parseInt(m, 10));
+      } else {
+        endDate.setHours(14, 0); 
+      }
+
+      const bookingRef = await addDoc(collection(db, "bookings"), {
+        requesterUserId: currentUser.uid,
+        performerUserId: user.uid,
+        title: bookForm.eventType,
+        location: bookForm.location,
+        skills: bookForm.skills,
+        start: startDate,
+        end: endDate,
+        pay: bookForm.pay,
+        message: bookForm.details,
+        status: "pending",
+        createdAt: serverTimestamp()
+      });
+      
       const uids = [currentUser.uid, user.uid].sort();
       const convoId = `${uids[0]}_${uids[1]}`;
 
-      // 3. Ensure the conversation document exists
+      // 2. Ensure the conversation document exists
       await setDoc(doc(db, "conversations", convoId), {
         participants: uids,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        lastMessage: `Sent a booking request for: ${bookForm.eventType}`,
+        lastTimestamp: serverTimestamp()
       }, { merge: true });
 
-      // 4. Send the message into the subcollection
+      // 3. Send the structured message data
       await addDoc(collection(db, "conversations", convoId, "messages"), {
-        text,
-        senderId: currentUser.uid,
-        createdAt: serverTimestamp()
+        text: "Sent a booking request.", // Fallback text for notifications
+        sender: currentUser.uid,
+        timestamp: serverTimestamp(),
+        seenBy: [currentUser.uid],
+        isBookingRequest: true,
+        bookingId: bookingRef.id,
+        bookingStatus: "pending",
+        // Pass the raw data so the UI can render it beautifully
+        bookingData: {
+          eventType: bookForm.eventType,
+          date: bookForm.date,
+          timeFrom: bookForm.timeFrom,
+          timeTo: bookForm.timeTo,
+          location: bookForm.location,
+          skills: bookForm.skills,
+          pay: bookForm.pay,
+          details: bookForm.details
+        }
       });
 
-      // 5. Navigate to messages with the convo open
       setIsModalOpen(false);
       navigate("/messages", { state: { convoId } });
 
@@ -98,7 +146,6 @@ export default function BookingCard({ user, currentUser }) {
           </div>
         </div>
 
-        {/* Fixed Containment: mt-auto pushes buttons to bottom, w-full ensures no overflow */}
         <div className="mt-auto pt-4 border-t border-gray-100 flex gap-2 w-full">
           <button 
             onClick={() => navigate(`/user/${user.uid}`)} 
@@ -117,9 +164,9 @@ export default function BookingCard({ user, currentUser }) {
 
       {/* BOOKING MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col my-8">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50 sticky top-0 z-10">
               <h2 className="text-xl font-extrabold text-gray-900">Book {user.stageName || user.fullName}</h2>
               <button onClick={() => setIsModalOpen(false)} className="p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-900 rounded-full transition">
                 <X className="w-5 h-5" />
@@ -129,56 +176,47 @@ export default function BookingCard({ user, currentUser }) {
             <form onSubmit={handleBookingSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Event Type</label>
-                <input 
-                  required
-                  placeholder="e.g. Wedding, Club Gig, Studio Session"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition"
-                  value={bookForm.eventType}
-                  onChange={e => setBookForm({...bookForm, eventType: e.target.value})}
-                />
+                <input required placeholder="e.g. Wedding, Club Gig, Studio Session" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition" value={bookForm.eventType} onChange={e => setBookForm({...bookForm, eventType: e.target.value})} />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Date</label>
-                  <input 
-                    type="date"
-                    required
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition"
-                    value={bookForm.date}
-                    onChange={e => setBookForm({...bookForm, date: e.target.value})}
-                  />
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Location</label>
+                  <input required placeholder="e.g. Kigali Arena" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition" value={bookForm.location} onChange={e => setBookForm({...bookForm, location: e.target.value})} />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Proposed Pay</label>
-                  <input 
-                    required
-                    placeholder="e.g. $500, TBD"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition"
-                    value={bookForm.pay}
-                    onChange={e => setBookForm({...bookForm, pay: e.target.value})}
-                  />
+                  <input required placeholder="e.g. $500, TBD" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition" value={bookForm.pay} onChange={e => setBookForm({...bookForm, pay: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-1">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Date</label>
+                  <input type="date" required className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition" value={bookForm.date} onChange={e => setBookForm({...bookForm, date: e.target.value})} />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Clock className="w-3 h-3"/> From (Opt)</label>
+                  <input type="time" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition" value={bookForm.timeFrom} onChange={e => setBookForm({...bookForm, timeFrom: e.target.value})} />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">To (Opt)</label>
+                  <input type="time" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition" value={bookForm.timeTo} onChange={e => setBookForm({...bookForm, timeTo: e.target.value})} />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Quick Details</label>
-                <textarea 
-                  required
-                  rows={3}
-                  placeholder="Provide a short description of the gig..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition resize-none"
-                  value={bookForm.details}
-                  onChange={e => setBookForm({...bookForm, details: e.target.value})}
-                />
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Skills Required</label>
+                <input required placeholder="e.g. Lead Guitar, Backing Vocals" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition" value={bookForm.skills} onChange={e => setBookForm({...bookForm, skills: e.target.value})} />
               </div>
 
-              <button 
-                type="submit"
-                disabled={sending}
-                className="w-full mt-4 flex items-center justify-center gap-2 bg-brand-600 text-white font-bold py-3.5 rounded-xl hover:bg-brand-700 transition shadow-lg shadow-brand-500/30 disabled:opacity-50"
-              >
-                {sending ? "Sending Request..." : <><Send className="w-4 h-4" /> Send Message</>}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Quick Details</label>
+                <textarea required rows={3} placeholder="Provide a short description of the gig..." className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition resize-none" value={bookForm.details} onChange={e => setBookForm({...bookForm, details: e.target.value})} />
+              </div>
+
+              <button type="submit" disabled={sending} className="w-full mt-4 flex items-center justify-center gap-2 bg-brand-600 text-white font-bold py-3.5 rounded-xl hover:bg-brand-700 transition shadow-lg shadow-brand-500/30 disabled:opacity-50">
+                {sending ? "Sending Request..." : <><Send className="w-4 h-4" /> Send Booking Offer</>}
               </button>
             </form>
           </div>

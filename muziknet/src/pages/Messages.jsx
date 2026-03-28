@@ -4,7 +4,7 @@ import { useLocation } from "react-router-dom";
 import { auth, db } from "../firebase";
 import {
   collection, query, where, onSnapshot, addDoc,
-  doc, setDoc, orderBy, getDocs, getDoc, serverTimestamp
+  doc, setDoc, orderBy, getDocs, getDoc, serverTimestamp, updateDoc
 } from "firebase/firestore";
 import { format, isSameDay } from "date-fns";
 import { Send, ArrowLeft, Search, MessageSquarePlus, Check, CheckCheck, User } from "lucide-react";
@@ -126,6 +126,26 @@ export default function Messages() {
 
     setShowStartModal(false);
     setSelectedConversation({ id: convoId, participants: uids, otherUser }); 
+  };
+
+  // Smart Contract Action: Accept / Decline Booking
+  const handleBookingResponse = async (messageId, bookingId, newStatus) => {
+    if (!selectedConversation) return;
+    try {
+      // 1. Update the message UI status
+      await updateDoc(doc(db, "conversations", selectedConversation.id, "messages", messageId), {
+        bookingStatus: newStatus
+      });
+      // 2. Update the actual Booking document so it appears on the Calendar
+      if (bookingId) {
+        await updateDoc(doc(db, "bookings", bookingId), {
+          status: newStatus,
+          updatedAt: serverTimestamp()
+        });
+      }
+    } catch (err) {
+      console.error("Failed to respond to booking:", err);
+    }
   };
 
   // Read Receipts
@@ -281,15 +301,86 @@ export default function Messages() {
                     )}
 
                     <div className={`flex w-full ${isMe ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[75%] md:max-w-[60%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                      <div className={`max-w-[85%] md:max-w-[70%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
                         
                         {/* THE CHAT BUBBLE */}
-                        <div className={`px-4 py-2.5 shadow-sm text-[15px] leading-relaxed ${
+                        <div className={`px-4 py-3 shadow-sm text-[15px] leading-relaxed ${
                           isMe
                             ? "bg-brand-500 text-white rounded-2xl rounded-tr-sm"
                             : "bg-white text-gray-900 border border-gray-100 rounded-2xl rounded-tl-sm"
-                        }`}>
-                          <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                        } ${msg.isBookingRequest ? (isMe ? 'bg-brand-600' : 'border-2 border-brand-200 bg-brand-50/50 w-full') : ''}`}>
+                          
+                          {/* STANDARD TEXT MESSAGE */}
+                          {!msg.isBookingRequest && (
+                            <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                          )}
+
+                          {/* SMART CONTRACT INVOICE CARD */}
+                          {msg.isBookingRequest && msg.bookingData && (
+                            <div className="w-full text-sm">
+                              <div className={`flex items-center gap-2 mb-3 pb-2 border-b ${isMe ? 'border-brand-400' : 'border-brand-200'}`}>
+                                <span className="text-xl">🎸</span>
+                                <h4 className={`font-extrabold text-lg ${isMe ? 'text-white' : 'text-gray-900'}`}>
+                                  {msg.bookingData.eventType}
+                                </h4>
+                              </div>
+                              
+                              <div className={`grid grid-cols-2 gap-y-3 gap-x-4 mb-4 ${isMe ? 'text-brand-50' : 'text-gray-600'}`}>
+                                <div>
+                                  <span className={`block text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isMe ? 'text-brand-300' : 'text-gray-400'}`}>Date & Time</span>
+                                  <span className={`font-semibold ${isMe ? 'text-white' : 'text-gray-900'}`}>
+                                    {msg.bookingData.date} <br/> {msg.bookingData.timeFrom && `${msg.bookingData.timeFrom} - ${msg.bookingData.timeTo || 'TBD'}`}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className={`block text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isMe ? 'text-brand-300' : 'text-gray-400'}`}>Location</span>
+                                  <span className={`font-semibold ${isMe ? 'text-white' : 'text-gray-900'}`}>{msg.bookingData.location}</span>
+                                </div>
+                                <div>
+                                  <span className={`block text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isMe ? 'text-brand-300' : 'text-gray-400'}`}>Pay</span>
+                                  <span className={`font-extrabold ${isMe ? 'text-white' : 'text-green-600'}`}>{msg.bookingData.pay}</span>
+                                </div>
+                                <div>
+                                  <span className={`block text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isMe ? 'text-brand-300' : 'text-gray-400'}`}>Skills Needed</span>
+                                  <span className={`font-semibold ${isMe ? 'text-white' : 'text-gray-900'}`}>{msg.bookingData.skills}</span>
+                                </div>
+                              </div>
+
+                              <div className={`p-3 rounded-xl text-sm italic ${isMe ? 'bg-brand-700 text-brand-50' : 'bg-white border border-gray-100 text-gray-700'}`}>
+                                "{msg.bookingData.details}"
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* BOOKING ACTION BUTTONS (Only visible to the receiver if pending) */}
+                          {msg.isBookingRequest && msg.bookingStatus === 'pending' && !isMe && (
+                            <div className="mt-4 flex gap-2 border-t border-brand-200 pt-3">
+                              <button 
+                                onClick={() => handleBookingResponse(msg.id, msg.bookingId, 'declined')}
+                                className="flex-1 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition"
+                              >
+                                Decline
+                              </button>
+                              <button 
+                                onClick={() => handleBookingResponse(msg.id, msg.bookingId, 'accepted')}
+                                className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-bold hover:bg-brand-700 transition shadow-md shadow-brand-500/20"
+                              >
+                                Accept Gig
+                              </button>
+                            </div>
+                          )}
+
+                          {/* BOOKING STATUS BADGE */}
+                          {msg.isBookingRequest && msg.bookingStatus && msg.bookingStatus !== 'pending' && (
+                            <div className={`mt-3 pt-2 border-t ${isMe ? 'border-brand-400' : 'border-gray-200'}`}>
+                              <span className={`text-xs font-extrabold uppercase tracking-widest px-2 py-1 rounded-md ${
+                                msg.bookingStatus === 'accepted' ? (isMe ? 'bg-brand-400 text-white' : 'bg-green-100 text-green-700') : 
+                                (isMe ? 'bg-brand-400 text-brand-100' : 'bg-red-100 text-red-700')
+                              }`}>
+                                Status: {msg.bookingStatus}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         
                         {/* Timestamp & Read Receipt */}

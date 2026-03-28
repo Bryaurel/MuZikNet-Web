@@ -1,3 +1,4 @@
+// src/pages/UserPostViewer.jsx
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { auth, db } from "../firebase";
@@ -114,31 +115,53 @@ export default function UserPostViewer() {
     const snap = await getDocs(existingLikeQuery);
     if (snap.empty) {
       await addDoc(likeRef, { postId: post.id, userId: currentUser.uid, createdAt: serverTimestamp() });
+
+      // NOTIFICATION TRIGGER: Send a social notification to the post owner
+      if (post.userId !== currentUser.uid) {
+        await addDoc(collection(db, "notifications"), {
+          userId: post.userId,
+          type: "social",
+          message: `${currentUser.displayName || "Someone"} liked your post.`,
+          link: `/user/${post.userId}`, // Link back to the user profile or post
+          isRead: false,
+          createdAt: serverTimestamp()
+        });
+      }
     }
   };
 
   const handleComment = async () => {
     if (!currentUser || !commentText.trim()) return;
-
+    
+    const textToSave = commentText.trim();
     const commentsRef = collection(db, "comments");
     await addDoc(commentsRef, {
       postId: post.id,
       userId: currentUser.uid,
-      text: commentText.trim(),
+      text: textToSave,
       createdAt: serverTimestamp(),
     });
 
     setCommentText("");
+
+    // NOTIFICATION TRIGGER: Send a social notification to the post owner
+    if (post.userId !== currentUser.uid) {
+      await addDoc(collection(db, "notifications"), {
+        userId: post.userId,
+        type: "social",
+        message: `${currentUser.displayName || "Someone"} commented: "${textToSave.length > 20 ? textToSave.substring(0, 20) + '...' : textToSave}"`,
+        link: `/user/${post.userId}`, // Link back to the user profile or post
+        isRead: false,
+        createdAt: serverTimestamp()
+      });
+    }
   };
 
   const goBack = () => {
-    // prefer history back so page isn't reloaded
     try {
       const saved = sessionStorage.getItem("homeScroll") || "0";
-      // if there is history, go back; else go to home.
       if (window.history.length > 1) {
         navigate(-1);
-        // small delay then ensure correct scroll
         setTimeout(() => {
           window.scrollTo(0, Number(saved));
         }, 50);

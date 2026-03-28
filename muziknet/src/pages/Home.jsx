@@ -8,6 +8,7 @@ import {
   orderBy,
   onSnapshot,
   doc,
+  addDoc,
   getDoc,
   updateDoc,
   arrayUnion,
@@ -128,13 +129,26 @@ export default function Home() {
       const snap = await getDoc(postRef);
       if (!snap.exists()) return;
 
-      const likes = snap.data().likes || [];
+      const postData = snap.data(); // Get the post data
+      const likes = postData.likes || [];
       const hasLiked = likes.includes(currentUser.uid);
 
       if (hasLiked) {
         await updateDoc(postRef, { likes: arrayRemove(currentUser.uid) });
       } else {
         await updateDoc(postRef, { likes: arrayUnion(currentUser.uid) });
+
+        // THE MAILMAN: Send Notification if it's not our own post!
+        if (postData.userId !== currentUser.uid) {
+          await addDoc(collection(db, "notifications"), {
+            userId: postData.userId, // Send to the post owner
+            type: "social",
+            message: `${currentUser.displayName || "Someone"} liked your post.`,
+            link: `/post/${postId}`,
+            isRead: false,
+            createdAt: serverTimestamp()
+          });
+        }
       }
     } catch (err) {
       console.error("Like toggle error:", err);
@@ -148,7 +162,6 @@ export default function Home() {
     if (!text) return;
 
     try {
-      // try to get nicer display name
       let userName = currentUser.displayName || null;
       try {
         const uRef = doc(db, "users", currentUser.uid);
@@ -160,16 +173,30 @@ export default function Home() {
       } catch {}
 
       const postRef = doc(db, "posts", postId);
+      const postSnap = await getDoc(postRef); // Need this to know who to notify
+      
       const newComment = {
         userId: currentUser.uid,
         userName: userName || null,
         text,
-        createdAt: Date.now(), // simple numeric timestamp (consistent with Home usage)
+        createdAt: Date.now(), 
       };
 
       await updateDoc(postRef, { comments: arrayUnion(newComment) });
-
       setCommentText((prev) => ({ ...prev, [postId]: "" }));
+
+      // THE MAILMAN: Send Notification
+      if (postSnap.exists() && postSnap.data().userId !== currentUser.uid) {
+        await addDoc(collection(db, "notifications"), {
+          userId: postSnap.data().userId,
+          type: "social",
+          message: `${userName || "Someone"} commented: "${text.length > 20 ? text.substring(0, 20) + '...' : text}"`,
+          link: `/post/${postId}`,
+          isRead: false,
+          createdAt: serverTimestamp()
+        });
+      }
+
     } catch (err) {
       console.error("Comment error:", err);
     }

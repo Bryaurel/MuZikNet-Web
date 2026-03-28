@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
 import {
   doc,
+  addDoc,
   getDoc,
   collection,
   onSnapshot,
@@ -92,6 +93,16 @@ export default function UserProfile() {
     } else {
       await setDoc(followerRef, { uid: currentUser.uid, followedAt: serverTimestamp() });
       await setDoc(followingRef, { uid, followedAt: serverTimestamp() });
+
+      // NOTIFICATION TRIGGER: Send a social notification to the user being followed
+      await addDoc(collection(db, "notifications"), {
+        userId: uid,
+        type: "social",
+        message: `${currentUser.displayName || "Someone"} started following you.`,
+        link: `/user/${currentUser.uid}`,
+        isRead: false,
+        createdAt: serverTimestamp()
+      });
     }
     setLoadingFollowAction(false);
   };
