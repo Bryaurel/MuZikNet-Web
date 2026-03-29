@@ -132,14 +132,28 @@ export default function Messages() {
   const handleBookingResponse = async (messageId, bookingId, newStatus) => {
     if (!selectedConversation) return;
     try {
+      let finalStatus = newStatus;
+
+      // If they are accepting, check the 10-day rule to see if it should bypass pre_booked
+      if (newStatus === 'accepted' && bookingId) {
+        const bookingSnap = await getDoc(doc(db, "bookings", bookingId));
+        if (bookingSnap.exists()) {
+          const eventDate = bookingSnap.data().start.toDate();
+          // Use Math to find days (avoiding importing date-fns just for this one line if you don't want to)
+          const daysUntil = Math.floor((eventDate - new Date()) / (1000 * 60 * 60 * 24));
+          
+          finalStatus = daysUntil <= 10 ? "confirmed" : "pre_booked";
+        }
+      }
+
       // 1. Update the message UI status
       await updateDoc(doc(db, "conversations", selectedConversation.id, "messages", messageId), {
-        bookingStatus: newStatus
+        bookingStatus: finalStatus
       });
-      // 2. Update the actual Booking document so it appears on the Calendar
+      // 2. Update the actual Booking document
       if (bookingId) {
         await updateDoc(doc(db, "bookings", bookingId), {
-          status: newStatus,
+          status: finalStatus,
           updatedAt: serverTimestamp()
         });
       }

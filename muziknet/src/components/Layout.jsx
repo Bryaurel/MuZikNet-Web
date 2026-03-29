@@ -5,7 +5,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
-import { Home, User, MessageSquare, Briefcase, CalendarCheck, Search as SearchIcon, LogOut } from "lucide-react";
+import { Home, User, MessageSquare, Briefcase, CalendarCheck, CalendarDays, Search as SearchIcon, LogOut } from "lucide-react";
 import { signOut } from "firebase/auth";
 
 function Layout() {
@@ -181,6 +181,7 @@ function Layout() {
             <NavItem to="/opportunities" icon={Briefcase} label="Opportunities" />
             <NavItem to="/booking" icon={SearchIcon} label="Find Talent" />
             <NavItem to="/my-bookings" icon={CalendarCheck} label="My Bookings" />
+            <NavItem to="/calendar" icon={CalendarDays} label="Master Schedule" />
             <NavItem to="/messages" icon={MessageSquare} label="Messages" />
             <NavItem to="/profile" icon={User} label="My Profile" />
           </div>
@@ -198,6 +199,7 @@ function Layout() {
         <Link to="/opportunities" className={`p-2 ${isActive("/opportunities") ? "text-brand-600" : "text-gray-500"}`}><Briefcase className="w-6 h-6" /></Link>
         <Link to="/messages" className={`p-2 ${isActive("/messages") ? "text-brand-600" : "text-gray-500"}`}><MessageSquare className="w-6 h-6" /></Link>
         <Link to="/my-bookings" className={`p-2 ${isActive("/my-bookings") ? "text-brand-600" : "text-gray-500"}`}><CalendarCheck className="w-6 h-6" /></Link>
+        <Link to="/calendar" className={`p-2 ${isActive("/calendar") ? "text-brand-600" : "text-gray-500"}`}><CalendarDays className="w-6 h-6" /></Link>
         <Link to="/profile" className={`p-2 ${isActive("/profile") ? "text-brand-600" : "text-gray-500"}`}><User className="w-6 h-6" /></Link>
       </nav>
 
