@@ -50,7 +50,7 @@ export default function Calendar({
   components 
 }) {
   return (
-    <div className="h-full min-h-[600px] font-sans">
+    <div className="h-full font-sans">
       <BigCalendar
         localizer={localizer}
         events={events}

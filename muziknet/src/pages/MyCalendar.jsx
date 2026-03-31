@@ -195,14 +195,23 @@ export default function MyCalendar() {
         </button>
       </div>
 
-      <div className="glass-card p-4 md:p-6 h-[80vh]">
+      <div className="glass-card p-4 md:p-6 h-[80vh] flex flex-col overflow-hidden">
         {loading ? (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400">
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
             <Clock className="w-8 h-8 animate-spin mb-3 text-brand-300" />
             <p>Loading your itinerary...</p>
           </div>
         ) : (
-          <Calendar events={events} defaultView="month" selectable={true} onSelectEvent={(event) => setSelectedEvent(event)} eventPropGetter={eventPropGetter} components={{ event: CustomEvent }} />
+          <div className="flex-1 min-h-0"> {/* This traps the calendar inside the flex container */}
+            <Calendar 
+              events={events} 
+              defaultView="month" 
+              selectable={true} 
+              onSelectEvent={(event) => setSelectedEvent(event)} 
+              eventPropGetter={eventPropGetter} 
+              components={{ event: CustomEvent }} 
+            />
+          </div>
         )}
       </div>
 

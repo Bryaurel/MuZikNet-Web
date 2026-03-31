@@ -60,6 +60,7 @@ export default function NewPostPage() {
         userStageName: userData.stageName || "",
         caption: caption.trim() || "",
         mediaURLs: uploadedURLs,
+        mediaType: files.length > 0 && files[0].type.startsWith("video/") ? "video" : "image",
         likes: [],
         comments: [],
         createdAt: serverTimestamp(),

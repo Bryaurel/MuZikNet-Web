@@ -203,8 +203,8 @@ export default function UserPostViewer() {
       {/* Media */}
       <div className="flex-1 flex items-center justify-center px-4">
         {post.mediaURLs?.[0] ? (
-          post.mediaURLs[0].match(/\.(mp4|mov|webm)$/i) ? (
-            <video src={post.mediaURLs[0]} controls className="max-h-[80vh] max-w-full object-contain" />
+          (post.mediaType === "video" || post.mediaURLs[0].match(/\.(mp4|mov|webm)/i)) ? (
+            <video src={post.mediaURLs[0]} controls autoPlay className="max-h-[80vh] max-w-full object-contain" />
           ) : (
             <img src={post.mediaURLs[0]} alt="Post media" className="max-h-[80vh] max-w-full object-contain" />
           )

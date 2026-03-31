@@ -69,8 +69,8 @@ export default function PostViewer() {
         
         {/* LEFT SIDE: MEDIA */}
         <div className="relative bg-black flex items-center justify-center aspect-square lg:aspect-auto lg:h-[600px]">
-          {post.mediaURLs?.[0]?.match(/\.(mp4|mov|webm)$/i) ? (
-            <video src={post.mediaURLs[0]} controls className="w-full h-full object-contain" />
+          {(post.mediaType === "video" || post.mediaURLs?.[0]?.match(/\.(mp4|mov|webm)/i)) ? (
+            <video src={post.mediaURLs[0]} controls autoPlay className="w-full h-full object-contain" />
           ) : (
             <img src={post.mediaURLs?.[0]} alt="" className="w-full h-full object-contain" />
           )}

@@ -195,22 +195,34 @@ export default function UserProfile() {
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {posts.map((post, index) => (
-                <div key={post.id} className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer relative" onClick={() => setSelectedPostIndex(index)}>
-                  <img src={post.mediaURLs?.[0]} alt="" className="w-full h-full object-cover" />
+                <div 
+                  key={post.id} 
+                  onClick={() => navigate(`/post/${post.id}`, { state: { fromProfile: true, posts } })} 
+                  className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-pointer shadow-soft"
+                >
+                  {(post.mediaType === "video" || post.mediaURLs?.[0]?.match(/\.(mp4|mov|webm)/i)) ? (
+                    <video 
+                      src={post.mediaURLs[0]} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                      muted 
+                      playsInline
+                      loop
+                      onMouseEnter={(e) => e.target.play().catch(() => {})} 
+                      onMouseLeave={(e) => e.target.pause()}
+                    />
+                  ) : (
+                    <img 
+                      src={post.mediaURLs?.[0] || ""} 
+                      alt="Post" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                    />
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
-      
-      {selectedPostIndex !== null && (
-        <PostViewer 
-          posts={posts} 
-          initialIndex={selectedPostIndex} 
-          onClose={() => setSelectedPostIndex(null)} 
-        />
-      )}
     </div>
   );
 }

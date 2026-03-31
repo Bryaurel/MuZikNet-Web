@@ -274,7 +274,7 @@ export default function Home() {
                 tabIndex={0}
               >
                 {post.mediaURLs?.[0] ? (
-                  /\.(mp4|mov|webm)$/i.test(post.mediaURLs[0]) ? (
+                  (post.mediaType === "video" || /\.(mp4|mov|webm)/i.test(post.mediaURLs[0])) ? (
                     <video
                       src={post.mediaURLs[0]}
                       className="w-full max-h-[480px] object-cover"
@@ -294,7 +294,7 @@ export default function Home() {
                   <div className="w-full h-48 flex items-center justify-center text-gray-400">No media</div>
                 )}
               </div>
-
+              
               {/* thin divider */}
               <div className="border-t border-gray-100 mt-3 mb-3" />
 
