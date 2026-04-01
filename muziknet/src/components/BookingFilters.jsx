@@ -1,6 +1,17 @@
 // src/components/BookingFilters.jsx
 import React, { useState } from "react";
-import { Plus, X, Calendar } from "lucide-react";
+import { Plus, X, Calendar, DollarSign } from "lucide-react";
+
+export const PRICE_RANGES = [
+  "less than $100",
+  "$100-$200",
+  "$200-$500",
+  "$500-$800",
+  "$800-$1200",
+  "$1200-$1500",
+  "$1500-$2000",
+  "more than $2000"
+];
 
 export default function BookingFilters({ filters, setFilters }) {
   const [instInput, setInstInput] = useState("");
@@ -79,6 +90,23 @@ export default function BookingFilters({ filters, setFilters }) {
             </span>
           ))}
         </div>
+      </div>
+
+      {/* BUDGET / PRICE RANGE */}
+      <div>
+        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+          <DollarSign className="w-4 h-4 text-green-500" /> Budget
+        </label>
+        <select 
+          value={filters.priceRange} 
+          onChange={(e) => setFilters({ ...filters, priceRange: e.target.value })}
+          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:bg-white focus:border-brand-500 outline-none text-gray-700"
+        >
+          <option value="">Any Budget</option>
+          {PRICE_RANGES.map(range => (
+            <option key={range} value={range}>{range}</option>
+          ))}
+        </select>
       </div>
 
       {/* AVAILABILITY CALENDAR */}

@@ -16,7 +16,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import PostViewer from "./PostViewer";
-import { MapPin } from "lucide-react";
+import { MapPin, DollarSign } from "lucide-react";
 import DefaultAvatar from "../components/DefaultAvatar";
 
 export default function UserProfile() {
@@ -160,6 +160,11 @@ export default function UserProfile() {
             {userData.city && (
               <span className="flex items-center gap-1 text-xs font-semibold text-gray-500 bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
                 <MapPin className="w-3 h-3" /> {userData.city}
+              </span>
+            )}
+            {userData.priceRange && userData.roles?.includes("Talent") && (
+              <span className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                <DollarSign className="w-3 h-3" /> {userData.priceRange} / gig
               </span>
             )}
             {instrumentsArray.slice(0, 3).map((skill, idx) => (

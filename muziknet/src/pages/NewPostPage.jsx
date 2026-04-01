@@ -111,7 +111,7 @@ export default function NewPostPage() {
                 </div>
                 <span className="text-sm font-bold text-gray-700">Click to upload photos or videos</span>
                 <span className="text-xs text-gray-400 mt-1">MP4, JPG, PNG (Max 50MB)</span>
-                <input type="file" accept="image/*,video/*" multiple onChange={handleFileChange} className="hidden" />
+                <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" multiple onChange={handleFileChange} className="hidden" />
               </label>
             )}
 

@@ -6,22 +6,24 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { ArrowLeft, Upload, Check, X, Loader2 } from "lucide-react";
+import { PRICE_RANGES } from "../components/BookingFilters";
 
 function EditProfile({ isOnboarding = false }) {
   const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({
     fullName: "",
     stageName: "",
-    username: "", // Added username field
+    username: "", 
     bio: "",
     city: "",
     instruments: "",
     photoURL: "",
     roles: [], 
+    priceRange: "", // ADDED FIELD
   });
 
   const [initialUsername, setInitialUsername] = useState("");
-  const [usernameStatus, setUsernameStatus] = useState("idle"); // 'idle', 'checking', 'available', 'taken'
+  const [usernameStatus, setUsernameStatus] = useState("idle"); 
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -72,13 +74,12 @@ function EditProfile({ isOnboarding = false }) {
       }
     };
 
-    const timeoutId = setTimeout(checkUsername, 500); // Debounce check
+    const timeoutId = setTimeout(checkUsername, 500);
     return () => clearTimeout(timeoutId);
   }, [formData.username, initialUsername]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Format username: lowercase and no spaces
     if (name === "username") {
       setFormData(prev => ({ ...prev, [name]: value.toLowerCase().replace(/\s/g, "") }));
     } else {
@@ -157,7 +158,6 @@ function EditProfile({ isOnboarding = false }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* USERNAME FIELD WITH VALIDATION UI */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Username *</label>
               <div className="relative">
@@ -197,9 +197,29 @@ function EditProfile({ isOnboarding = false }) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Instruments & Skills</label>
-            <input type="text" name="instruments" value={formData.instruments} onChange={handleChange} placeholder="e.g. Guitar, Vocals" className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Instruments & Skills</label>
+              <input type="text" name="instruments" value={formData.instruments} onChange={handleChange} placeholder="e.g. Guitar, Vocals" className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm" />
+            </div>
+            
+            {/* PRICE RANGE SELECTION (Only for Talents) */}
+            {formData.roles?.includes("Talent") && (
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Standard Rate per Gig</label>
+                <select 
+                  name="priceRange" 
+                  value={formData.priceRange} 
+                  onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm"
+                >
+                  <option value="">Select a rate</option>
+                  {PRICE_RANGES.map((range) => (
+                    <option key={range} value={range}>{range}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div>

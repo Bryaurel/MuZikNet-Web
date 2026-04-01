@@ -33,7 +33,7 @@ export default function BookingCard({ user, currentUser }) {
     setSending(true);
 
     try {
-      // 1. Create a formal Booking Document in the database
+      // 1. Create a formal Booking Document
       let startDate = new Date(bookForm.date);
       let endDate = new Date(bookForm.date);
       
@@ -68,24 +68,25 @@ export default function BookingCard({ user, currentUser }) {
       const uids = [currentUser.uid, user.uid].sort();
       const convoId = `${uids[0]}_${uids[1]}`;
 
-      // 2. Ensure the conversation document exists
+      // 2. Ensure conversation exists and FLAG AS UNREAD for the Talent!
       await setDoc(doc(db, "conversations", convoId), {
         participants: uids,
         updatedAt: serverTimestamp(),
         lastMessage: `Sent a booking request for: ${bookForm.eventType}`,
-        lastTimestamp: serverTimestamp()
+        lastTimestamp: serverTimestamp(),
+        [`unread_${user.uid}`]: true,       // Highlights the chat in purple
+        [`hasBooking_${user.uid}`]: true    // Triggers the green dot
       }, { merge: true });
 
       // 3. Send the structured message data
       await addDoc(collection(db, "conversations", convoId, "messages"), {
-        text: "Sent a booking request.", // Fallback text for notifications
+        text: "Sent a booking request.",
         sender: currentUser.uid,
         timestamp: serverTimestamp(),
         seenBy: [currentUser.uid],
         isBookingRequest: true,
         bookingId: bookingRef.id,
         bookingStatus: "pending",
-        // Pass the raw data so the UI can render it beautifully
         bookingData: {
           eventType: bookForm.eventType,
           date: bookForm.date,

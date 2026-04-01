@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebase";
 import { doc, onSnapshot, collection, query, where, getDocs, orderBy, updateDoc } from "firebase/firestore";
-import { Settings, Edit3, Music, Briefcase, Plus, Users, Image as ImageIcon, MapPin, Zap } from "lucide-react";
+import { Settings, Edit3, Music, Briefcase, Plus, Users, Image as ImageIcon, MapPin, Zap, DollarSign } from "lucide-react";
 import DefaultAvatar from "../components/DefaultAvatar";
 
 function Profile() {
@@ -172,6 +172,11 @@ function Profile() {
               {profile.city && (
                 <span className="flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
                   <MapPin className="w-3 h-3" /> {profile.city}
+                </span>
+              )}
+              {profile.priceRange && isTalent && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                  <DollarSign className="w-3 h-3" /> {profile.priceRange} / gig
                 </span>
               )}
               {instrumentsArray.slice(0, 3).map((skill, idx) => (

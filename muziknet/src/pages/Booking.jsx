@@ -13,6 +13,7 @@ export default function Booking() {
     locations: [],  
     dateFrom: null,
     dateTo: null,
+    priceRange: "" // ADDED PRICE RANGE STATE
   });
   const [availableNowOnly, setAvailableNowOnly] = useState(false);
   const [results, setResults] = useState([]);
@@ -25,12 +26,10 @@ export default function Booking() {
 
   useEffect(() => {
     setLoading(true);
-    // BUG FIX: Query for anyone who is a Talent (since acceptingBookings didn't exist)
     const q = query(collection(db, "users"), where("roles", "array-contains", "Talent"));
     
     const unsub = onSnapshot(q, (snap) => {
       const fetched = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-      // Filter out the current user so they don't book themselves
       const others = fetched.filter(u => u.uid !== auth.currentUser?.uid);
       setResults(filterUsers(others, filters, availableNowOnly));
       setLoading(false);
@@ -45,6 +44,11 @@ export default function Booking() {
   const filterUsers = (users, f, reqAvailableNow) => {
     return users.filter(u => {
       if (reqAvailableNow && !u.availableNow) return false;
+
+      // PRICE RANGE FILTER
+      if (f.priceRange) {
+        if (u.priceRange !== f.priceRange) return false;
+      }
 
       if (f.locations.length > 0) {
         const loc = (u.city || u.location || "").toLowerCase();
@@ -116,7 +120,7 @@ export default function Booking() {
             <h3 className="text-xl font-bold text-gray-900">No performers found</h3>
             <p className="text-gray-500 text-sm mt-2 max-w-sm leading-relaxed">We couldn't find anyone matching those exact filters.</p>
             <button 
-              onClick={() => { setFilters({ instruments: [], locations: [], dateFrom: null, dateTo: null}); setAvailableNowOnly(false); }} 
+              onClick={() => { setFilters({ instruments: [], locations: [], dateFrom: null, dateTo: null, priceRange: "" }); setAvailableNowOnly(false); }} 
               className="mt-6 text-brand-600 font-bold bg-brand-50 px-6 py-2.5 rounded-full hover:bg-brand-100 transition-colors"
             >
               Clear all filters

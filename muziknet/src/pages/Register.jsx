@@ -9,13 +9,11 @@ import {
   signOut,
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
-import { Mail, ArrowRight } from "lucide-react";
 
 const Register = () => {
   const [formData, setFormData] = useState({ fullName: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isRegistered, setIsRegistered] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) => setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -41,12 +39,17 @@ const Register = () => {
 
       await sendEmailVerification(user);
       
-      // REMOVED await signOut(auth) - This keeps the success state active
-      setIsRegistered(true); 
+      // CRITICAL FIX: Sign the user out so App.jsx routing doesn't break
+      await signOut(auth);
+      
+      // Send them directly to Login with the success message attached!
+      navigate("/login", { 
+        state: { message: "Account created successfully! Please check your inbox to verify your email before logging in." } 
+      });
+      
     } catch (err) {
       console.error("Registration error:", err);
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -75,30 +78,6 @@ const Register = () => {
     }
   };
 
-  // SUCCESS SCREEN UI
-  if (isRegistered) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#f8f9fc] p-4">
-        <div className="glass-card p-10 max-w-md w-full text-center flex flex-col items-center">
-          <div className="w-20 h-20 bg-brand-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
-            <Mail className="w-10 h-10 text-brand-500" />
-          </div>
-          <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Check your inbox</h2>
-          <p className="text-gray-500 text-sm mb-8 leading-relaxed">
-            We've sent a verification link to <span className="font-semibold text-gray-700">{formData.email}</span>. Please verify your email to access MuZikNet.
-          </p>
-          <Link 
-            to="/login"
-            className="w-full flex items-center justify-center gap-2 bg-brand-600 text-white font-semibold py-3 rounded-xl hover:bg-brand-700 transition shadow-md shadow-brand-500/20"
-          >
-            Go to Login <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // STANDARD REGISTRATION FORM
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-[#f8f9fc] p-4">
       <div className="glass-card p-8 w-full max-w-md">
