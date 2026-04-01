@@ -52,15 +52,17 @@ function Layout() {
     }
     setLoading(true);
     try {
-      const usersRef = collection(db, "users");
-      const q1 = query(usersRef, where("username", ">=", value), where("username", "<=", value + "\uf8ff"));
-      const q2 = query(usersRef, where("stageName", ">=", value), where("stageName", "<=", value + "\uf8ff"));
-
-      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-      const combined = [...snap1.docs, ...snap2.docs];
-      const unique = Array.from(new Map(combined.map(doc => [doc.id, { id: doc.id, ...doc.data() }])).values());
+      const snap = await getDocs(collection(db, "users"));
+      const lowerVal = value.toLowerCase();
       
-      setResults(unique.filter((u) => u.id !== currentUser?.uid));
+      const allUsers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const filtered = allUsers.filter(u => 
+        (u.username && u.username.toLowerCase().includes(lowerVal)) || 
+        (u.stageName && u.stageName.toLowerCase().includes(lowerVal)) ||
+        (u.fullName && u.fullName.toLowerCase().includes(lowerVal))
+      );
+      
+      setResults(filtered.filter((u) => u.id !== currentUser?.uid));
     } catch (err) {
       console.error("Search error:", err);
     }

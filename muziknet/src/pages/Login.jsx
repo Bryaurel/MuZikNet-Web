@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { auth, db, provider } from "../firebase";
 import { signInWithEmailAndPassword, signInWithPopup, sendEmailVerification, signOut } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
@@ -10,6 +10,8 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showResend, setShowResend] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectMessage = location.state?.message;
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -80,6 +82,11 @@ const Login = () => {
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
       <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
         <h2 className="text-2xl font-bold text-center mb-6">Welcome Back</h2>
+        {redirectMessage && (
+          <div className="bg-amber-100 text-amber-700 p-3 rounded-lg mb-4 text-center text-sm font-medium border border-amber-200">
+            {redirectMessage}
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-100 text-red-600 p-2 rounded mb-3 text-center text-sm">
