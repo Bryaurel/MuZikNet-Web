@@ -132,6 +132,18 @@ export default function BookingCard({ user, currentUser }) {
           <h3 className="font-extrabold text-gray-900 text-lg leading-tight truncate">
             {user.stageName || user.fullName}
           </h3>
+
+          {/* RATING DISPLAY */}
+          <div className="flex items-center gap-1 mt-1 mb-2">
+            <span className="text-amber-500 text-sm">🎵</span>
+            {user.avgRating ? (
+              <span className="text-sm font-bold text-gray-900">
+                {Number(user.avgRating).toFixed(1)} <span className="text-xs text-gray-500 font-medium">({user.reviewCount} reviews)</span>
+              </span>
+            ) : (
+              <span className="text-xs text-gray-500 font-medium italic">New Artist</span>
+            )}
+          </div>
           
           <div className="flex items-center gap-1 text-xs text-gray-500 mt-1.5 mb-3 font-medium">
             <MapPin className="w-3.5 h-3.5 text-gray-400" />

@@ -1,6 +1,6 @@
 // src/components/BookingFilters.jsx
 import React, { useState } from "react";
-import { Plus, X, Calendar, DollarSign } from "lucide-react";
+import { Plus, X, Calendar, DollarSign, Star } from "lucide-react";
 
 export const PRICE_RANGES = [
   "less than $100",
@@ -109,29 +109,21 @@ export default function BookingFilters({ filters, setFilters }) {
         </select>
       </div>
 
-      {/* AVAILABILITY CALENDAR */}
-      <div className="border-t border-gray-100 pt-5">
-        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-          <Calendar className="w-4 h-4 text-brand-500" /> Availability Range
+      {/* MINIMUM RATING FILTER */}
+      <div>
+        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+          <Star className="w-4 h-4 text-amber-500" /> Minimum Rating
         </label>
-        <div className="space-y-3">
-          <div>
-            <span className="text-[10px] text-gray-400 uppercase font-bold ml-1">From</span>
-            <input 
-              type="date" 
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:bg-white focus:border-brand-500 outline-none text-gray-700 mt-1"
-              onChange={(e) => setFilters({...filters, dateFrom: e.target.value ? new Date(e.target.value) : null})}
-            />
-          </div>
-          <div>
-            <span className="text-[10px] text-gray-400 uppercase font-bold ml-1">To</span>
-            <input 
-              type="date" 
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:bg-white focus:border-brand-500 outline-none text-gray-700 mt-1"
-              onChange={(e) => setFilters({...filters, dateTo: e.target.value ? new Date(e.target.value) : null})}
-            />
-          </div>
-        </div>
+        <select 
+          value={filters.minRating} 
+          onChange={(e) => setFilters({ ...filters, minRating: Number(e.target.value) })}
+          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:bg-white focus:border-brand-500 outline-none text-gray-700"
+        >
+          <option value={0}>Any Rating</option>
+          <option value={4.5}>🎵 4.5+ Notes</option>
+          <option value={4.0}>🎵 4.0+ Notes</option>
+          <option value={3.0}>🎵 3.0+ Notes</option>
+        </select>
       </div>
 
     </div>
