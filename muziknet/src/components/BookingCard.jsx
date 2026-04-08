@@ -141,7 +141,7 @@ export default function BookingCard({ user, currentUser }) {
                 {Number(user.avgRating).toFixed(1)} <span className="text-xs text-gray-500 font-medium">({user.reviewCount} reviews)</span>
               </span>
             ) : (
-              <span className="text-xs text-gray-500 font-medium italic">New Artist</span>
+              <span className="text-xs text-gray-500 font-medium italic">No Reviews</span>
             )}
           </div>
           
